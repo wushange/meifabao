@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAppData } from "./hooks/useAppData";
+import { dailyBackup } from "./db";
 import CheckoutPage from "./pages/CheckoutPage";
 import MemberPage from "./pages/MemberPage";
 import RecordPage from "./pages/RecordPage";
@@ -21,6 +22,13 @@ const tabs: { id: Tab; icon: string; label: string }[] = [
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("checkout");
   const data = useAppData();
+
+  // 启动时执行每日自动备份
+  useEffect(() => {
+    if (!data.loading && data.members.length >= 0) {
+      dailyBackup().catch(() => {});
+    }
+  }, [data.loading]);
 
   if (data.loading) {
     return (

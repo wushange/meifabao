@@ -30,6 +30,7 @@ pub fn run() {
             get_recharges,
             export_all_data,
             clear_all_data,
+            daily_backup,
         ])
         .setup(|app| {
             let data_dir = app.path().app_data_dir().expect("failed to get app data dir");

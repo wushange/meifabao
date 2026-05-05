@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   getMembers, getServices, getRecords, getLevels,
   MemberFull, ServiceItem, RecordItem, LevelInfo, RechargeItem,
@@ -24,9 +24,10 @@ export function useAppData(): AppData {
   const [levels, setLevels] = useState<LevelInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const initialLoadDone = useRef(false);
 
-  const loadAll = useCallback(async () => {
-    setLoading(true);
+  const loadAll = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     setError("");
     try {
       const [m, s, r, rg, lv] = await Promise.all([
@@ -41,11 +42,19 @@ export function useAppData(): AppData {
     } catch (e) {
       setError(String(e));
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }, []);
 
-  useEffect(() => { loadAll(); }, [loadAll]);
+  // 首次加载：显示 loading
+  useEffect(() => {
+    loadAll(true).then(() => { initialLoadDone.current = true; });
+  }, [loadAll]);
 
-  return { members, services, records, recharges, levels, loading, error, reload: loadAll };
+  // 静默刷新：不显示 loading，不卸载子组件
+  const reload = useCallback(() => {
+    loadAll(false);
+  }, [loadAll]);
+
+  return { members, services, records, recharges, levels, loading, error, reload };
 }

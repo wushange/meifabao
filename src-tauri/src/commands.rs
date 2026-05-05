@@ -517,3 +517,120 @@ fn get_recharges_impl(c: &Connection, member_id: Option<i32>) -> Result<Vec<Rech
         rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
     }
 }
+
+// ── 每日自动备份 ──
+
+#[derive(Serialize)]
+pub struct BackupResult {
+    pub backed_up: bool,
+    pub path: String,
+    pub message: String,
+}
+
+#[tauri::command]
+pub fn daily_backup(db_path: tauri::State<PathBuf>, app_handle: tauri::AppHandle) -> Result<BackupResult, String> {
+    use std::fs;
+    use std::io::Write;
+    use tauri::Manager;
+
+    let c = conn(db_path.inner())?;
+
+    let data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    let backup_dir = data_dir.join("backups");
+    fs::create_dir_all(&backup_dir).map_err(|e| e.to_string())?;
+
+    let today = chrono_now_str();
+    let filename = format!("members_{}.csv", today);
+    let filepath = backup_dir.join(&filename);
+
+    if filepath.exists() {
+        return Ok(BackupResult {
+            backed_up: false,
+            path: filepath.to_string_lossy().to_string(),
+            message: "今日已备份".to_string(),
+        });
+    }
+
+    let mut stmt = c.prepare(
+        "SELECT name, phone, level, balance, total_spent, created_at FROM members ORDER BY id"
+    ).map_err(|e| e.to_string())?;
+
+    let rows = stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, f64>(3)?,
+            row.get::<_, f64>(4)?,
+            row.get::<_, String>(5)?,
+        ))
+    }).map_err(|e| e.to_string())?;
+
+    let mut file = fs::File::create(&filepath).map_err(|e| e.to_string())?;
+    file.write_all(b"\xEF\xBB\xBF").map_err(|e| e.to_string())?;
+    writeln!(file, "姓名,手机号,等级,余额,累计消费,注册时间").map_err(|e| e.to_string())?;
+
+    let mut count = 0;
+    for row in rows {
+        let (name, phone, level, balance, total_spent, created_at) = row.map_err(|e| e.to_string())?;
+        writeln!(file, "{},{},{},{:.2},{:.2},{}",
+            csv_escape(&name), csv_escape(&phone), csv_escape(&level),
+            balance, total_spent, csv_escape(&created_at),
+        ).map_err(|e| e.to_string())?;
+        count += 1;
+    }
+
+    // 保留最近 30 天
+    if let Ok(entries) = fs::read_dir(&backup_dir) {
+        let mut files: Vec<_> = entries
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().ends_with(".csv"))
+            .collect();
+        files.sort_by_key(|e| e.metadata().and_then(|m| m.modified()).unwrap_or(std::time::SystemTime::UNIX_EPOCH));
+        if files.len() > 30 {
+            for old in files.iter().take(files.len() - 30) {
+                let _ = fs::remove_file(old.path());
+            }
+        }
+    }
+
+    Ok(BackupResult {
+        backed_up: true,
+        path: filepath.to_string_lossy().to_string(),
+        message: format!("已备份 {} 名会员", count),
+    })
+}
+
+fn chrono_now_str() -> String {
+    use std::time::SystemTime;
+    let dur = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default();
+    let total_days = (dur.as_secs() / 86400) as i32;
+    let mut year = 1970i32;
+    let mut remaining = total_days;
+    loop {
+        let diy = if is_leap(year) { 366 } else { 365 };
+        if remaining < diy { break; }
+        remaining -= diy;
+        year += 1;
+    }
+    let mdays = if is_leap(year) {
+        [31,29,31,30,31,30,31,31,30,31,30,31]
+    } else {
+        [31,28,31,30,31,30,31,31,30,31,30,31]
+    };
+    let mut month = 1;
+    for &md in mdays.iter() {
+        if remaining < md { break; }
+        remaining -= md;
+        month += 1;
+    }
+    format!("{:04}-{:02}-{:02}", year, month, remaining + 1)
+}
+
+fn is_leap(y: i32) -> bool { (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0) }
+
+fn csv_escape(s: &str) -> String {
+    if s.contains(',') || s.contains('"') || s.contains('\n') {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    } else { s.to_string() }
+}

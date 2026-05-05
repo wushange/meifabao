@@ -143,3 +143,13 @@ export async function exportAllData(): Promise<string> {
 export async function clearAllData(): Promise<void> {
   await invoke("clear_all_data");
 }
+
+export interface DailyBackupResult {
+  backed_up: boolean;
+  path: string;
+  message: string;
+}
+
+export async function dailyBackup(): Promise<DailyBackupResult> {
+  return await invoke<DailyBackupResult>("daily_backup");
+}
