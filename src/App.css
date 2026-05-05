@@ -182,7 +182,7 @@ body {
 .chart-bar-label { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
 
 /* ═══ Table ═══ */
-.table-wrap { overflow-x: auto; }
+.table-wrap { overflow: auto; }
 .table { width: 100%; border-collapse: collapse; font-size: var(--font-size); }
 .table th {
   text-align: left;
@@ -194,6 +194,9 @@ body {
   font-size: 13px;
   text-transform: uppercase;
   letter-spacing: .5px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
 }
 .table th:first-child { border-radius: var(--radius) 0 0 var(--radius); }
 .table th:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
