@@ -198,60 +198,59 @@ export default function CheckoutPage({ levels, onReload }: Props) {
 
             {/* 右侧：购物车 */}
             <div className="cart-panel">
-              <h3>待结账清单</h3>
-              {cartItems.length === 0 ? (
-                <div style={{textAlign:"center",padding:"30px 0",color:"var(--text-tertiary)",fontSize:"var(--font-size-sm)"}}>
-                  请在左侧选择服务项目
-                </div>
-              ) : (
-                <>
-                  <div className="cart-items">
-                    {cartItems.map((item, i) => (
-                      <div key={i} className="cart-item">
-                        <span>{item.name}</span>
-                        <span>¥{(item.price * discountRate).toFixed(2)}</span>
-                        <button className="btn-icon" onClick={() => toggleCart(item.id)}>✕</button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="cart-summary">
-                    {discountRate < 1 && (
-                      <div className="cart-row"><span>原价合计</span><span>¥{original.toFixed(2)}</span></div>
-                    )}
-                    {discountRate < 1 && (
-                      <div className="cart-row discount"><span>会员折扣 {(discountRate*100).toFixed(0)}%</span><span>-¥{(original-total).toFixed(2)}</span></div>
-                    )}
-                    <div className="cart-row total"><span>应付金额</span><span>¥{total.toFixed(2)}</span></div>
-                  </div>
-                </>
-              )}
+              {/* 上半：可滚动的清单区 */}
+              <div className="cart-scroll">
+                <h3>待结账清单</h3>
+                {cartItems.length === 0 ? (
+                  <div className="cart-empty">点击左侧服务项目加入清单</div>
+                ) : (
+                  <>
+                    <div className="cart-items">
+                      {cartItems.map((item, i) => (
+                        <div key={i} className="cart-item">
+                          <span>{item.name}</span>
+                          <span>¥{(item.price * discountRate).toFixed(2)}</span>
+                          <button className="btn-icon" onClick={() => toggleCart(item.id)}>✕</button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="cart-summary">
+                      {discountRate < 1 && (
+                        <div className="cart-row"><span>原价合计</span><span>¥{original.toFixed(2)}</span></div>
+                      )}
+                      {discountRate < 1 && (
+                        <div className="cart-row discount"><span>折扣 {(discountRate*100).toFixed(0)}%</span><span>-¥{(original-total).toFixed(2)}</span></div>
+                      )}
+                      <div className="cart-row total"><span>应付金额</span><span>¥{total.toFixed(2)}</span></div>
+                    </div>
+                  </>
+                )}
+              </div>
 
-              <div style={{marginTop:"auto",display:"flex",flexDirection:"column",gap:"10px"}}>
+              {/* 下半：固定在底部的支付区 */}
+              <div className="cart-footer">
                 <div className="cart-payment">
                   <label className="radio-label">
                     <input type="radio" name="payment" value="现金" checked={payment==="现金"} onChange={e => setPayment(e.target.value)} />
-                    现金
+                    💵 现金
                   </label>
                   <label className="radio-label">
                     <input type="radio" name="payment" value="余额" checked={payment==="余额"} onChange={e => setPayment(e.target.value)} />
-                    余额
+                    💳 余额
                   </label>
                 </div>
-
                 <input
                   className="input"
                   placeholder="备注（可选）"
                   value={note}
                   onChange={e => setNote(e.target.value)}
                 />
-
                 <button
                   className="btn btn-success btn-lg btn-block"
                   disabled={cartItems.length === 0 || loading}
                   onClick={doCheckout}
-                  style={{marginTop:"4px"}}
                 >
-                  {loading ? "处理中..." : `确认结账  ¥${total.toFixed(2)}`}
+                  {loading ? "处理中..." : cartItems.length === 0 ? "请选择服务项目" : `✅ 确认结账  ¥${total.toFixed(2)}`}
                 </button>
               </div>
             </div>
