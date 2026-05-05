@@ -64,10 +64,11 @@ export default function SettingsPage({ levels, onReload }: Props) {
       const ws = wb.Sheets[wb.SheetNames[0]];
       // 用header:1取原始表头（包含空值列，regular mode会跳过整列空的列）
       const allRows = XLSX.utils.sheet_to_json(ws, {header: 1});
-      const cols: string[] = (allRows[0] || []).map((c: any) => String(c ?? ""));
+      const cols = ((allRows[0] || []) as any[]).map((c: any) => String(c ?? ""));
       // 数据行仍用默认模式（跳过空值列）
       const rows = XLSX.utils.sheet_to_json(ws);
       setImportData(rows);
+      setDetectedCols(cols);
       // 显示原始列名供用户参考
       const cleanCols = cols.map(c => c.trim().replace(/\s+/g, ''));
       // 更激进匹配: 包含任一关键词即可
@@ -182,7 +183,7 @@ export default function SettingsPage({ levels, onReload }: Props) {
             )}
             {importStep === "mapping" && (
               <div>
-                <p>请确认列映射（检测到列：{cols.join(" | ") || "无"}）：</p>
+                <p>请确认列映射（检测到列：{detectedCols.join(" | ") || "无"}）：</p>
                 {(["name","phone","level","balance","note","totalSpent"] as const).map(f => (
                   <div key={f} className="form-row">
                     <label>{f==="name"?"姓名":f==="phone"?"手机号":f==="level"?"等级":f==="balance"?"余额":f==="note"?"备注":"储值金额"}</label>
