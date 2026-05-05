@@ -149,7 +149,7 @@ pub fn update_member(db_path: tauri::State<PathBuf>, member: Member) -> Result<(
     let c = conn(db_path.inner())?;
     c.execute(
         "UPDATE members SET name=?1, phone=?2, level=?3, balance=?4, note=?5 WHERE id=?6",
-        rusqlite::params![member.name, member.phone, member.level, member.balance, member.id],
+        rusqlite::params![member.name, member.phone, member.level, member.balance, member.note.unwrap_or("".into()), member.id],
     ).map_err(|e| e.to_string())?;
     Ok(())
 }
