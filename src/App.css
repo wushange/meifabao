@@ -101,8 +101,13 @@ body {
 }
 .loading-logo { font-size: 48px; animation: pulse 1.5s infinite; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.search-bar {
+  display: flex; gap: 10px; margin-bottom: 20px;
+  position: sticky; top: 0; z-index: 10;
+  background: var(--bg);
+  padding: 4px 0 16px;
+}
 
-/* ═══ Page Header ═══ */
 .page-header {
   display: flex;
   align-items: center;
@@ -110,6 +115,9 @@ body {
   margin-bottom: 20px;
   flex-wrap: wrap;
   gap: 10px;
+  position: sticky; top: 0; z-index: 10;
+  background: var(--bg);
+  padding: 4px 0 16px;
 }
 .page-header h2 { font-size: var(--font-size-xl); font-weight: 700; }
 .page-actions { display: flex; gap: 8px; align-items: center; }
@@ -315,7 +323,6 @@ body {
 
 /* ═══ Checkout Page ═══ */
 .checkout-page { position: relative; }
-.search-bar { display: flex; gap: 10px; margin-bottom: 20px; }
 .search-bar .input-lg { flex: 1; }
 
 .result-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
