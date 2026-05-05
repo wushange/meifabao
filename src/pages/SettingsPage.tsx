@@ -67,9 +67,9 @@ export default function SettingsPage({ levels, onReload }: Props) {
         name: cols.find(c => c.includes("姓名")||c.toLowerCase().includes("name")) || cols[0]||"",
         phone: cols.find(c => c.includes("手机")||c.includes("电话")||c.toLowerCase().includes("phone")) || cols[1]||"",
         level: cols.find(c => c.includes("等级")||c.includes("级别")) || "",
-        balance: cols.find(c => c.includes("余额")||c.includes("金额")) || "",
-        note: cols.find(c => c.includes("备注")||c.toLowerCase().includes("note")) || "",
-        totalSpent: cols.find(c => c.includes("储值")||c.includes("充值")) || "",
+        balance: cols.find(c => c.includes("余额") || (c.includes("金额") && !c.includes("储值") && !c.includes("充值"))) || "",
+        note: cols.find(c => c.includes("备注") || c.toLowerCase().includes("note") || c.includes("说明")) || "",
+        totalSpent: cols.find(c => c.includes("储值") || c.includes("充值")) || "",
       });
       setImportStep("mapping");
     };
