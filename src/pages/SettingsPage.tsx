@@ -129,41 +129,52 @@ export default function SettingsPage({ levels, onReload }: Props) {
   return (
     <div className="page">
       {toast && <div className="toast" onClick={() => setToast("")}>{toast}</div>}
-      <h2>⚙️ 系统设置</h2>
+      <div className="page-header">
+        <h2>⚙️ 系统设置</h2>
+      </div>
 
       <div className="settings-section">
         <h3>会员等级折扣</h3>
         <p className="section-desc">根据会员累计消费金额自动升级，享受对应折扣</p>
-        <table className="table">
-          <thead><tr><th>等级</th><th>折扣率</th><th>升级门槛（累计消费）</th></tr></thead>
-          <tbody>
-            {levels.map(lv => (
-              <tr key={lv.name}>
-                <td><span className={`level-tag level-${lv.name}`}>{lv.name}</span></td>
-                <td>
-                  <input className="input input-sm" type="number" step="0.01" min="0" max="1"
-                    value={lv.discount}
-                    onChange={e => handleUpdateLevel(lv.name, "discount", parseFloat(e.target.value)||0)}
-                    style={{width: 100}} />
-                  <span style={{marginLeft: 4}}>（{(lv.discount*100).toFixed(0)}%）</span>
-                </td>
-                <td>
-                  <input className="input input-sm" type="number" min="0"
-                    value={lv.threshold}
-                    onChange={e => handleUpdateLevel(lv.name, "threshold", parseFloat(e.target.value)||0)}
-                    style={{width: 100}} />
-                  <span style={{marginLeft: 4}}>元</span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="table-wrap" style={{marginTop:14}}>
+          <div className="table-scroll">
+            <table className="table">
+              <thead><tr><th>等级</th><th>折扣率</th><th>升级门槛（累计消费）</th></tr></thead>
+              <tbody>
+                {levels.map(lv => (
+                  <tr key={lv.name}>
+                    <td><span className={`level-tag level-${lv.name}`}>{lv.name}</span></td>
+                    <td>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <input className="input input-sm" type="number" step="0.01" min="0" max="1"
+                          value={lv.discount}
+                          onChange={e => handleUpdateLevel(lv.name, "discount", parseFloat(e.target.value)||0)}
+                          style={{width:90}} />
+                        <span style={{color:"var(--text-secondary)",fontSize:"var(--font-size-sm)"}}>（{(lv.discount*100).toFixed(0)}% 折）</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <input className="input input-sm" type="number" min="0"
+                          value={lv.threshold}
+                          onChange={e => handleUpdateLevel(lv.name, "threshold", parseFloat(e.target.value)||0)}
+                          style={{width:100}} />
+                        <span style={{color:"var(--text-secondary)",fontSize:"var(--font-size-sm)"}}>元</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       <div className="settings-section">
         <h3>数据管理</h3>
+        <p className="section-desc">导入、导出或清空所有数据</p>
         <div className="settings-actions">
-          <button className="btn btn-outline" onClick={() => { setShowImport(true); setImportStep("upload"); }}>📥 导入Excel</button>
+          <button className="btn btn-outline" onClick={() => { setShowImport(true); setImportStep("upload"); }}>📥 导入 Excel</button>
           <button className="btn btn-primary" onClick={handleExport}>📤 导出备份</button>
           <button className="btn btn-danger" onClick={handleClear}>🗑 清空数据</button>
         </div>
@@ -216,6 +227,10 @@ export default function SettingsPage({ levels, onReload }: Props) {
           </div>
         </div>
       )}
+
+      <div className="settings-section" style={{textAlign:"center",opacity:.6}}>
+        <p style={{fontSize:"var(--font-size-sm)",color:"var(--text-tertiary)"}}>小凤美发管理系统 · v0.1.0</p>
+      </div>
     </div>
   );
 }

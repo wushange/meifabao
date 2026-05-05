@@ -172,10 +172,24 @@ pub fn batch_import_members(db_path: tauri::State<PathBuf>, members: Vec<ImportM
     for m in members {
         let exists: bool = c.query_row("SELECT 1 FROM members WHERE phone=?1", rusqlite::params![m.phone], |_| Ok(true)).unwrap_or(false);
         if exists { skip += 1; continue; }
+        let balance = m.balance.unwrap_or(0.0);
         match c.execute(
             "INSERT INTO members (name, phone, level, balance, note, total_spent) VALUES (?1,?2,?3,?4,?5,?6)",
-            rusqlite::params![m.name, m.phone, m.level.unwrap_or("普通".into()), m.balance.unwrap_or(0.0), m.note.unwrap_or("".into()), m.total_spent.unwrap_or(0.0)],
-        ) { Ok(_) => ok += 1, Err(_) => skip += 1 }
+            rusqlite::params![m.name, m.phone, m.level.unwrap_or("普通".into()), balance, m.note.unwrap_or("".into()), m.total_spent.unwrap_or(0.0)],
+        ) {
+            Ok(_) => {
+                ok += 1;
+                // 若导入时余额 > 0，自动插入初始充值记录以便统计储值总额
+                if balance > 0.0 {
+                    let member_id: i64 = c.last_insert_rowid();
+                    let _ = c.execute(
+                        "INSERT INTO recharges (member_id, amount, note) VALUES (?1,?2,'导入初始余额')",
+                        rusqlite::params![member_id, balance],
+                    );
+                }
+            }
+            Err(_) => skip += 1
+        }
     }
     Ok((ok, skip))
 }
@@ -400,16 +414,18 @@ pub fn recharge(db_path: tauri::State<PathBuf>, member_id: i32, amount: f64, not
 pub fn get_recharges(db_path: tauri::State<PathBuf>, member_id: Option<i32>) -> Result<Vec<Recharge>, String> {
     let c = conn(db_path.inner())?;
     let recharges = if let Some(mid) = member_id {
+        // 指定会员时限制条数（用于展示）
         let mut stmt = c.prepare(
-            "SELECT id, member_id, amount, COALESCE(note,''), created_at FROM recharges WHERE member_id=?1 ORDER BY created_at DESC LIMIT 100"
+            "SELECT id, member_id, amount, COALESCE(note,''), created_at FROM recharges WHERE member_id=?1 ORDER BY created_at DESC LIMIT 200"
         ).map_err(|e| e.to_string())?;
         let rows = stmt.query_map(rusqlite::params![mid], |row| {
             Ok(Recharge { id: row.get(0)?, member_id: row.get(1)?, amount: row.get(2)?, note: row.get(3)?, created_at: row.get(4)? })
         }).map_err(|e| e.to_string())?;
         rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
     } else {
+        // 全量查询，用于统计储值总额（不限条数）
         let mut stmt = c.prepare(
-            "SELECT id, member_id, amount, COALESCE(note,''), created_at FROM recharges ORDER BY created_at DESC LIMIT 100"
+            "SELECT id, member_id, amount, COALESCE(note,''), created_at FROM recharges ORDER BY created_at DESC"
         ).map_err(|e| e.to_string())?;
         let rows = stmt.query_map([], |row| {
             Ok(Recharge { id: row.get(0)?, member_id: row.get(1)?, amount: row.get(2)?, note: row.get(3)?, created_at: row.get(4)? })
@@ -506,7 +522,7 @@ fn get_records_impl(c: &Connection, member_id: Option<i32>, limit: Option<i32>) 
 fn get_recharges_impl(c: &Connection, member_id: Option<i32>) -> Result<Vec<Recharge>, String> {
     if let Some(mid) = member_id {
         let mut stmt = c.prepare(
-            "SELECT id,member_id,amount,COALESCE(note,''),created_at FROM recharges WHERE member_id=?1 ORDER BY created_at DESC LIMIT 100"
+            "SELECT id,member_id,amount,COALESCE(note,''),created_at FROM recharges WHERE member_id=?1 ORDER BY created_at DESC LIMIT 200"
         ).map_err(|e| e.to_string())?;
         let rows = stmt.query_map(rusqlite::params![mid], |row| {
             Ok(Recharge { id: row.get(0)?, member_id: row.get(1)?, amount: row.get(2)?, note: row.get(3)?, created_at: row.get(4)? })
@@ -514,7 +530,7 @@ fn get_recharges_impl(c: &Connection, member_id: Option<i32>) -> Result<Vec<Rech
         rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
     } else {
         let mut stmt = c.prepare(
-            "SELECT id,member_id,amount,COALESCE(note,''),created_at FROM recharges ORDER BY created_at DESC LIMIT 100"
+            "SELECT id,member_id,amount,COALESCE(note,''),created_at FROM recharges ORDER BY created_at DESC"
         ).map_err(|e| e.to_string())?;
         let rows = stmt.query_map([], |row| {
             Ok(Recharge { id: row.get(0)?, member_id: row.get(1)?, amount: row.get(2)?, note: row.get(3)?, created_at: row.get(4)? })

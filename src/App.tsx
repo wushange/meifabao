@@ -55,8 +55,11 @@ export default function App() {
       {/* 侧边栏 */}
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <span className="sidebar-logo">💈</span>
-          <span className="sidebar-title">小凤美发</span>
+          <div className="sidebar-logo">💈</div>
+          <div>
+            <div className="sidebar-title">小凤美发</div>
+            <div className="sidebar-subtitle">会员管理系统</div>
+          </div>
         </div>
         <nav className="sidebar-nav">
           {tabs.map(tab => (

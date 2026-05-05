@@ -50,43 +50,45 @@ export default function StatsPage({ members, records, recharges }: Props) {
 
   return (
     <div className="page">
-      <h2>📊 数据概览</h2>
+      <div className="page-header">
+        <h2>📊 数据概览</h2>
+      </div>
 
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-value">{members.length}</div>
-          <div className="stat-label">会员总数</div>
+          <div className="stat-label">👥 会员总数</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">¥{stats.totalBalance.toFixed(0)}</div>
-          <div className="stat-label">会员余额总计</div>
+          <div className="stat-label">💰 会员余额总计</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">{stats.todayRecords.length}</div>
-          <div className="stat-label">今日消费笔数</div>
+          <div className="stat-label">✂️ 今日消费笔数</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">¥{stats.todayIncome.toFixed(0)}</div>
-          <div className="stat-label">今日收入</div>
+          <div className="stat-label">📈 今日收入</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">¥{stats.todayRechargeTotal.toFixed(0)}</div>
-          <div className="stat-label">今日充值</div>
+          <div className="stat-label">💳 今日充值</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">¥{stats.totalRechargeAmount.toFixed(0)}</div>
-          <div className="stat-label">储值总额</div>
+          <div className="stat-label">🏦 储值总额</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">{records.length}</div>
-          <div className="stat-label">累计消费笔数</div>
+          <div className="stat-label">📋 累计消费笔数</div>
         </div>
       </div>
 
       <div className="stats-row">
         {/* 等级分布 */}
         <div className="stats-panel">
-          <h3>会员等级分布</h3>
+          <h3>🏅 会员等级分布</h3>
           <div className="level-bars">
             {Object.entries(stats.levelDist).map(([lv, count]) => (
               <div key={lv} className="level-bar-row">
@@ -97,20 +99,23 @@ export default function StatsPage({ members, records, recharges }: Props) {
                 <span className="level-bar-count">{count}人</span>
               </div>
             ))}
+            {Object.keys(stats.levelDist).length === 0 && (
+              <div className="empty-state" style={{padding:"20px 0"}}>暂无数据</div>
+            )}
           </div>
         </div>
 
         {/* 近7天趋势 */}
         <div className="stats-panel">
-          <h3>近7天收入趋势</h3>
+          <h3>📈 近7天收入趋势</h3>
           <div className="chart-bars">
             {stats.last7Days.map(d => {
               const maxIncome = Math.max(...stats.last7Days.map(x => x.income), 1);
               const h = (d.income / maxIncome * 100).toFixed(0);
               return (
                 <div key={d.date} className="chart-bar-col">
-                  <div className="chart-bar-val">¥{d.income.toFixed(0)}</div>
-                  <div className="chart-bar" style={{height: `${h}%`, minHeight: d.income > 0 ? '4px' : '0'}} />
+                  <div className="chart-bar-val">{d.income > 0 ? `¥${d.income.toFixed(0)}` : ""}</div>
+                  <div className="chart-bar" style={{height: `${h}%`, minHeight: d.income > 0 ? '6px' : '0'}} />
                   <div className="chart-bar-label">{d.date}</div>
                 </div>
               );
@@ -121,18 +126,22 @@ export default function StatsPage({ members, records, recharges }: Props) {
 
       {/* Top 服务 */}
       <div className="stats-panel">
-        <h3>热门服务 TOP5</h3>
-        <div className="level-bars">
-          {stats.topServices.map(([name, count]) => (
-            <div key={name} className="level-bar-row">
-              <span>{name}</span>
-              <div className="level-bar-track">
-                <div className="level-bar-fill" style={{width: `${stats.topServices[0] ? (count/stats.topServices[0][1]*100) : 0}%`}} />
+        <h3>🔥 热门服务 TOP5</h3>
+        {stats.topServices.length === 0 ? (
+          <div className="empty-state" style={{padding:"20px 0"}}>暂无消费记录</div>
+        ) : (
+          <div className="level-bars">
+            {stats.topServices.map(([name, count]) => (
+              <div key={name} className="level-bar-row">
+                <span style={{minWidth:80,fontSize:"var(--font-size)",fontWeight:500}}>{name}</span>
+                <div className="level-bar-track">
+                  <div className="level-bar-fill" style={{width: `${stats.topServices[0] ? (count/stats.topServices[0][1]*100) : 0}%`}} />
+                </div>
+                <span className="level-bar-count">{count}次</span>
               </div>
-              <span className="level-bar-count">{count}次</span>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -47,7 +47,7 @@ export default function RecordPage({ records, recharges, members, onReload }: Pr
       {toast && <div className="toast" onClick={() => setToast("")}>{toast}</div>}
       <div className="page-header">
         <h2>📋 记录查询</h2>
-        <input className="input" placeholder="搜索会员姓名..." value={search} onChange={e => setSearch(e.target.value)} />
+        <input className="input" placeholder="搜索会员姓名..." value={search} onChange={e => setSearch(e.target.value)} style={{width:220}} />
       </div>
 
       <div className="tab-bar">

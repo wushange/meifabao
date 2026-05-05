@@ -79,9 +79,9 @@ export default function MemberPage({ members, onReload }: Props) {
       {toast && <div className="toast" onClick={() => setToast("")}>{toast}</div>}
 
       <div className="page-header">
-        <h2>👥 会员管理 ({members.length})</h2>
+        <h2>👥 会员管理 <span style={{fontSize:"var(--font-size-sm)",fontWeight:500,color:"var(--text-secondary)",background:"var(--border-light)",padding:"2px 10px",borderRadius:"20px",marginLeft:"4px"}}>{members.length}</span></h2>
         <div className="page-actions">
-          <input className="input" placeholder="搜索会员..." value={search} onChange={e => setSearch(e.target.value)} />
+          <input className="input" placeholder="搜索姓名 / 手机号..." value={search} onChange={e => setSearch(e.target.value)} style={{width:220}} />
           <button className="btn btn-primary" onClick={openAdd}>+ 新增会员</button>
         </div>
       </div>

@@ -120,21 +120,22 @@ export default function CheckoutPage({ levels, onReload }: Props) {
       {/* 搜索区 */}
       <div className="search-bar">
         <input
-          className="input-lg"
-          placeholder="输入手机号或姓名搜索会员"
+          className="input input-lg"
+          placeholder="🔍  输入手机号或姓名搜索会员..."
           value={keyword}
           onChange={e => setKeyword(e.target.value)}
           onKeyDown={e => e.key === "Enter" && doSearch()}
           autoFocus
+          style={{flex:1}}
         />
         <button className="btn btn-primary btn-lg" onClick={doSearch} disabled={searching}>
-          {searching ? "搜索中..." : "🔍 搜索"}
+          {searching ? "搜索中..." : "搜索"}
         </button>
       </div>
 
       {/* 搜索结果 */}
       {searched && results.length === 0 && (
-        <div className="empty-state">未找到会员，请检查输入</div>
+        <div className="empty-state" style={{padding:"60px 20px"}}>未找到会员，请检查输入</div>
       )}
       {results.length > 0 && !selected && (
         <div className="result-list">
@@ -142,9 +143,10 @@ export default function CheckoutPage({ levels, onReload }: Props) {
             <div key={m.id} className="member-card" onClick={() => selectMember(m)}>
               <div className="member-card-name">{m.name}</div>
               <div className="member-card-info">
-                <span>{m.phone}</span>
+                <span>📱 {m.phone}</span>
                 <span className={`level-tag level-${m.level}`}>{m.level}</span>
-                <span>余额 ¥{m.balance.toFixed(2)}</span>
+                <span>余额 <strong style={{color:"var(--gold-dark)"}}>¥{m.balance.toFixed(2)}</strong></span>
+                {m.total_spent > 0 && <span>累计消费 ¥{m.total_spent.toFixed(0)}</span>}
               </div>
             </div>
           ))}
@@ -155,15 +157,20 @@ export default function CheckoutPage({ levels, onReload }: Props) {
       {selected && (
         <div className="checkout-area">
           <div className="checkout-member-bar">
-            <span className="member-label">{selected.name} · {selected.level}</span>
-            <span className="member-balance">余额 ¥{selected.balance.toFixed(2)}</span>
-            <button className="btn btn-sm" onClick={() => { setSelected(null); setCart([]); }}>换人</button>
+            <div style={{flex:1}}>
+              <div className="member-label">{selected.name}</div>
+              <div style={{display:"flex",gap:"8px",marginTop:"3px",alignItems:"center"}}>
+                <span className={`level-tag level-${selected.level}`}>{selected.level}</span>
+                {discountRate < 1 && <span style={{fontSize:"var(--font-size-sm)",color:"var(--gold-dark)"}}>享 {(discountRate*100).toFixed(0)}% 折扣</span>}
+              </div>
+            </div>
+            <div className="member-balance">余额 ¥{selected.balance.toFixed(2)}</div>
+            <button className="btn btn-ghost btn-sm" onClick={() => { setSelected(null); setCart([]); }}>切换会员</button>
           </div>
 
           <div className="checkout-layout">
             {/* 左侧：服务列表 */}
             <div className="service-picker">
-              <h3>选择服务</h3>
               {Object.entries(serviceGroups).map(([cat, items]) => (
                 <div key={cat} className="service-group">
                   <div className="service-cat-label">{cat}</div>
@@ -191,9 +198,11 @@ export default function CheckoutPage({ levels, onReload }: Props) {
 
             {/* 右侧：购物车 */}
             <div className="cart-panel">
-              <h3>待结账</h3>
+              <h3>待结账清单</h3>
               {cartItems.length === 0 ? (
-                <div className="empty-state">请选择服务项目</div>
+                <div style={{textAlign:"center",padding:"30px 0",color:"var(--text-tertiary)",fontSize:"var(--font-size-sm)"}}>
+                  请在左侧选择服务项目
+                </div>
               ) : (
                 <>
                   <div className="cart-items">
@@ -207,41 +216,44 @@ export default function CheckoutPage({ levels, onReload }: Props) {
                   </div>
                   <div className="cart-summary">
                     {discountRate < 1 && (
-                      <div className="cart-row"><span>原价</span><span>¥{original.toFixed(2)}</span></div>
+                      <div className="cart-row"><span>原价合计</span><span>¥{original.toFixed(2)}</span></div>
                     )}
                     {discountRate < 1 && (
-                      <div className="cart-row discount">会员折扣 {(discountRate*100).toFixed(0)}%</div>
+                      <div className="cart-row discount"><span>会员折扣 {(discountRate*100).toFixed(0)}%</span><span>-¥{(original-total).toFixed(2)}</span></div>
                     )}
-                    <div className="cart-row total"><span>合计</span><span>¥{total.toFixed(2)}</span></div>
+                    <div className="cart-row total"><span>应付金额</span><span>¥{total.toFixed(2)}</span></div>
                   </div>
                 </>
               )}
 
-              <div className="cart-payment">
-                <label className="radio-label">
-                  <input type="radio" name="payment" value="现金" checked={payment==="现金"} onChange={e => setPayment(e.target.value)} />
-                  现金支付
-                </label>
-                <label className="radio-label">
-                  <input type="radio" name="payment" value="余额" checked={payment==="余额"} onChange={e => setPayment(e.target.value)} />
-                  余额支付
-                </label>
+              <div style={{marginTop:"auto",display:"flex",flexDirection:"column",gap:"10px"}}>
+                <div className="cart-payment">
+                  <label className="radio-label">
+                    <input type="radio" name="payment" value="现金" checked={payment==="现金"} onChange={e => setPayment(e.target.value)} />
+                    现金
+                  </label>
+                  <label className="radio-label">
+                    <input type="radio" name="payment" value="余额" checked={payment==="余额"} onChange={e => setPayment(e.target.value)} />
+                    余额
+                  </label>
+                </div>
+
+                <input
+                  className="input"
+                  placeholder="备注（可选）"
+                  value={note}
+                  onChange={e => setNote(e.target.value)}
+                />
+
+                <button
+                  className="btn btn-success btn-lg btn-block"
+                  disabled={cartItems.length === 0 || loading}
+                  onClick={doCheckout}
+                  style={{marginTop:"4px"}}
+                >
+                  {loading ? "处理中..." : `确认结账  ¥${total.toFixed(2)}`}
+                </button>
               </div>
-
-              <input
-                className="input"
-                placeholder="备注（可选）"
-                value={note}
-                onChange={e => setNote(e.target.value)}
-              />
-
-              <button
-                className="btn btn-success btn-lg btn-block"
-                disabled={cartItems.length === 0 || loading}
-                onClick={doCheckout}
-              >
-                {loading ? "处理中..." : `确认结账 ¥${total.toFixed(2)}`}
-              </button>
             </div>
           </div>
         </div>
