@@ -23,6 +23,7 @@ pub struct MemberFull {
     pub balance: f64,
     pub total_spent: f64,
     pub created_at: String,
+    pub note: String,
     pub last_visit: Option<String>,
 }
 
@@ -106,7 +107,7 @@ pub fn get_members(db_path: tauri::State<PathBuf>) -> Result<Vec<MemberFull>, St
         Ok(MemberFull {
             id: row.get(0)?, name: row.get(1)?, phone: row.get(2)?,
             level: row.get(3)?, balance: row.get(4)?, total_spent: row.get(5)?,
-            created_at: row.get(6)?, last_visit: row.get(7)?,
+            created_at: row.get(6)?, note: row.get(7)?, last_visit: row.get(8)?,
         })
     }).map_err(|e| e.to_string())?;
 
@@ -127,7 +128,7 @@ pub fn search_members(db_path: tauri::State<PathBuf>, keyword: String) -> Result
         Ok(MemberFull {
             id: row.get(0)?, name: row.get(1)?, phone: row.get(2)?,
             level: row.get(3)?, balance: row.get(4)?, total_spent: row.get(5)?,
-            created_at: row.get(6)?, last_visit: row.get(7)?,
+            created_at: row.get(6)?, note: row.get(7)?, last_visit: row.get(8)?,
         })
     }).map_err(|e| e.to_string())?;
     rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
@@ -460,7 +461,7 @@ fn get_members_impl(c: &Connection) -> Result<Vec<MemberFull>, String> {
         Ok(MemberFull {
             id: row.get(0)?, name: row.get(1)?, phone: row.get(2)?,
             level: row.get(3)?, balance: row.get(4)?, total_spent: row.get(5)?,
-            created_at: row.get(6)?, last_visit: None,
+            created_at: row.get(6)?, note: row.get(7)?, last_visit: None,
         })
     }).map_err(|e| e.to_string())?;
     rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
