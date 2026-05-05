@@ -57,7 +57,7 @@ export default function ServicePage({ services, onReload }: Props) {
       {categories.map(cat => (
         <div key={cat} className="service-cat-section">
           <h3 className="service-cat-title">{cat}</h3>
-          <div className="service-grid">
+          <div className="service-grid service-cards-grid">
             {services.filter(s => s.category === cat).map(s => (
               <div key={s.id} className="service-card">
                 <div className="service-card-name">{s.name}</div>

@@ -17,7 +17,7 @@ export default function CheckoutPage({ levels, onReload }: Props) {
   const [selected, setSelected] = useState<MemberFull | null>(null);
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [cart, setCart] = useState<number[]>([]);
-  const [payment, setPayment] = useState("现金");
+  const [payment, setPayment] = useState("余额");
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState("");
@@ -68,6 +68,7 @@ export default function CheckoutPage({ levels, onReload }: Props) {
     try {
       const r = await checkout(selected.id, cart, payment, note);
       setReceipt(r);
+      setToast(`✅ 结账成功！实付 ¥${r.total.toFixed(2)}，余额 ¥${r.new_balance.toFixed(2)}`);
       setSelected(null);
       setCart([]);
       setKeyword("");
