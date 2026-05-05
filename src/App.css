@@ -181,31 +181,70 @@ body {
 .chart-bar { width: 32px; background: linear-gradient(180deg, var(--gold) 0%, var(--gold-light) 100%); border-radius: 4px 4px 0 0; min-height: 4px; transition: height .3s; }
 .chart-bar-label { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
 
-/* ═══ Table ═══ */
-.table-wrap { overflow: auto; }
-.table { width: 100%; border-collapse: collapse; font-size: var(--font-size); }
+/* ═══ Table (Element Plus 风格) ═══ */
+.table-wrap {
+  background: var(--card);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.table-wrap h3 {
+  padding: 14px 16px 12px;
+  font-size: var(--font-size);
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+  flex-shrink: 0;
+}
+.table-scroll {
+  overflow-y: auto;
+  flex: 1;
+  max-height: calc(100vh - 220px);
+}
+/* RecordPage 双表时降低单表最大高度 */
+.table-wrap + .table-wrap { margin-top: 20px; }
+.table-wrap + .table-wrap .table-scroll { max-height: calc(50vh - 100px); }
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size);
+  table-layout: auto;
+}
+/* 表头固定 */
+.table thead { position: sticky; top: 0; z-index: 5; }
 .table th {
   text-align: left;
-  padding: 12px 14px;
-  background: linear-gradient(180deg, var(--gold-light) 0%, #ede0c8 100%);
-  color: var(--gold-dark);
+  padding: 12px 16px;
+  background: #f5f7fa;
+  color: #606266;
   font-weight: 600;
   white-space: nowrap;
   font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: .5px;
-  position: sticky;
-  top: 0;
-  z-index: 5;
+  border-bottom: 1px solid #ebeef5;
+  border-right: none;
+  user-select: none;
 }
-.table th:first-child { border-radius: var(--radius) 0 0 var(--radius); }
-.table th:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
-.table td { padding: 12px 14px; border-bottom: 1px solid var(--border); }
-.table tr:hover td { background: rgba(212,160,23,.04); }
-.table .money { font-variant-numeric: tabular-nums; font-weight: 600; }
-.table .date { color: var(--text-secondary); font-size: 13px; }
-.table .note { color: var(--text-secondary); font-size: 13px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.table th:first-child { border-radius: 0; }
+.table th:last-child { border-radius: 0; }
+/* 斑马纹行 */
+.table tbody tr:nth-child(even) td { background: #fafafa; }
+.table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #ebeef5;
+  color: var(--text);
+  transition: background .1s;
+}
+.table tbody tr:hover td { background: #f5f7fa !important; }
+.table .money { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--gold-dark); }
+.table .date { color: var(--text-secondary); font-size: 13px; white-space: nowrap; }
+.table .note { color: var(--text-secondary); font-size: 13px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .table .actions { display: flex; gap: 4px; white-space: nowrap; }
+/* 末行无底线 */
+.table tbody tr:last-child td { border-bottom: none; }
 
 /* ═══ Buttons ═══ */
 .btn {

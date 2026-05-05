@@ -87,30 +87,32 @@ export default function MemberPage({ members, onReload }: Props) {
       </div>
 
       <div className="table-wrap">
-        <table className="table">
-          <thead>
-            <tr><th>姓名</th><th>手机号</th><th>等级</th><th>余额</th><th>累计消费</th><th>备注</th><th>注册时间</th><th>操作</th></tr>
-          </thead>
-          <tbody>
-            {filtered.map(m => (
-              <tr key={m.id}>
-                <td><strong>{m.name}</strong></td>
-                <td>{m.phone}</td>
-                <td><span className={`level-tag level-${m.level}`}>{m.level}</span></td>
-                <td className="money">¥{m.balance.toFixed(2)}</td>
-                <td className="money">¥{(m.total_spent||0).toFixed(2)}</td>
-                <td className="note">{m.note}</td>
-                <td className="date">{m.created_at?.slice(0,10)}</td>
-                <td className="actions">
-                  <button className="btn btn-sm btn-outline" onClick={() => openEdit(m)}>编辑</button>
-                  <button className="btn btn-sm btn-success" onClick={() => { setShowRecharge(m); setRechargeAmount(""); }}>充值</button>
-                  <button className="btn btn-sm btn-danger" onClick={() => doDelete(m)}>删除</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {filtered.length === 0 && <div className="empty-state">暂无会员</div>}
+        <div className="table-scroll">
+          <table className="table">
+            <thead>
+              <tr><th>姓名</th><th>手机号</th><th>等级</th><th>余额</th><th>累计消费</th><th>备注</th><th>注册时间</th><th>操作</th></tr>
+            </thead>
+            <tbody>
+              {filtered.map(m => (
+                <tr key={m.id}>
+                  <td><strong>{m.name}</strong></td>
+                  <td>{m.phone}</td>
+                  <td><span className={`level-tag level-${m.level}`}>{m.level}</span></td>
+                  <td className="money">¥{m.balance.toFixed(2)}</td>
+                  <td className="money">¥{(m.total_spent||0).toFixed(2)}</td>
+                  <td className="note">{m.note}</td>
+                  <td className="date">{m.created_at?.slice(0,10)}</td>
+                  <td className="actions">
+                    <button className="btn btn-sm btn-outline" onClick={() => openEdit(m)}>编辑</button>
+                    <button className="btn btn-sm btn-success" onClick={() => { setShowRecharge(m); setRechargeAmount(""); }}>充值</button>
+                    <button className="btn btn-sm btn-danger" onClick={() => doDelete(m)}>删除</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {filtered.length === 0 && <div className="empty-state">暂无会员</div>}
+        </div>
       </div>
 
       {/* 新增/编辑弹窗 */}
