@@ -63,13 +63,21 @@ export default function SettingsPage({ levels, onReload }: Props) {
       const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
       setImportData(rows);
       const cols = Object.keys(rows[0] || {});
+      // 自动映射，并处理列名含空白字符的情况
+      const cleanCols = cols.map(c => c.trim().replace(/\s+/g, ''));
+      const findCol = (patterns: string[], fallbackIndex?: number) => {
+        const match = cols.find((c, i) => patterns.some(p => cleanCols[i].includes(p)));
+        if (match) return match;
+        if (fallbackIndex !== undefined && cols[fallbackIndex]) return cols[fallbackIndex];
+        return "";
+      };
       setImportMapping({
-        name: cols.find(c => c.includes("姓名")||c.toLowerCase().includes("name")) || cols[0]||"",
-        phone: cols.find(c => c.includes("手机")||c.includes("电话")||c.toLowerCase().includes("phone")) || cols[1]||"",
-        level: cols.find(c => c.includes("等级")||c.includes("级别")) || "",
-        balance: cols.find(c => c.includes("余额") || (c.includes("金额") && !c.includes("储值") && !c.includes("充值"))) || "",
-        note: cols.find(c => c.includes("备注") || c.toLowerCase().includes("note") || c.includes("说明")) || "",
-        totalSpent: cols.find(c => c.includes("储值") || c.includes("充值")) || "",
+        name: findCol(["姓名", "name"], 0),
+        phone: findCol(["手机", "电话", "phone"], 1),
+        level: findCol(["等级", "级别", "level"]),
+        balance: findCol(["余额"]),
+        note: findCol(["备注", "note", "说明"], 5),
+        totalSpent: findCol(["储值", "充值"]),
       });
       setImportStep("mapping");
     };
