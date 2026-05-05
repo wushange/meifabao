@@ -14,6 +14,7 @@ export default function SettingsPage({ levels, onReload }: Props) {
   const [showImport, setShowImport] = useState(false);
   const [importStep, setImportStep] = useState<"upload"|"mapping"|"preview"|"result">("upload");
   const [importData, setImportData] = useState<any[]>([]);
+  const [detectedCols, setDetectedCols] = useState<string[]>([]);
   const [importMapping, setImportMapping] = useState({name:"",phone:"",level:"",balance:"",note:"",totalSpent:""});
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [importResult, setImportResult] = useState<{ok:number;skip:number}|null>(null);
@@ -60,14 +61,30 @@ export default function SettingsPage({ levels, onReload }: Props) {
     const reader = new FileReader();
     reader.onload = (ev) => {
       const wb = XLSX.read(new Uint8Array(ev.target!.result as ArrayBuffer), {type:"array"});
-      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      // 用header:1取原始表头（包含空值列，regular mode会跳过整列空的列）
+      const allRows = XLSX.utils.sheet_to_json(ws, {header: 1});
+      const cols: string[] = (allRows[0] || []).map((c: any) => String(c ?? ""));
+      // 数据行仍用默认模式（跳过空值列）
+      const rows = XLSX.utils.sheet_to_json(ws);
       setImportData(rows);
-      const cols = Object.keys(rows[0] || {});
-      // 自动映射，并处理列名含空白字符的情况
+      // 显示原始列名供用户参考
       const cleanCols = cols.map(c => c.trim().replace(/\s+/g, ''));
+      // 更激进匹配: 包含任一关键词即可
       const findCol = (patterns: string[], fallbackIndex?: number) => {
-        const match = cols.find((c, i) => patterns.some(p => cleanCols[i].includes(p)));
-        if (match) return match;
+        // 1. 精确关键词匹配
+        for (const p of patterns) {
+          const idx = cleanCols.findIndex(c => c.includes(p));
+          if (idx >= 0) return cols[idx];
+        }
+        // 2. 首字匹配（如"备"匹配"备注"）
+        for (const p of patterns) {
+          if (p.length <= 1) continue;
+          const firstChar = p[0];
+          const idx = cleanCols.findIndex(c => c.includes(firstChar) && !["姓","电","等","储","余","name","phone","level","余额","储值"].some(x => c.includes(x)));
+          if (idx >= 0 && !["姓名","电话","等级","储值金额","余额"].some(x => cols[idx]?.includes(x))) return cols[idx];
+        }
+        // 3. 位置兜底
         if (fallbackIndex !== undefined && cols[fallbackIndex]) return cols[fallbackIndex];
         return "";
       };
@@ -76,7 +93,7 @@ export default function SettingsPage({ levels, onReload }: Props) {
         phone: findCol(["手机", "电话", "phone"], 1),
         level: findCol(["等级", "级别", "level"]),
         balance: findCol(["余额"]),
-        note: findCol(["备注", "note", "说明"], 5),
+        note: findCol(["备注", "note", "说明", "备", "注"]),
         totalSpent: findCol(["储值", "充值"]),
       });
       setImportStep("mapping");
@@ -165,7 +182,7 @@ export default function SettingsPage({ levels, onReload }: Props) {
             )}
             {importStep === "mapping" && (
               <div>
-                <p>请确认列映射：</p>
+                <p>请确认列映射（检测到列：{cols.join(" | ") || "无"}）：</p>
                 {(["name","phone","level","balance","note","totalSpent"] as const).map(f => (
                   <div key={f} className="form-row">
                     <label>{f==="name"?"姓名":f==="phone"?"手机号":f==="level"?"等级":f==="balance"?"余额":f==="note"?"备注":"储值金额"}</label>
