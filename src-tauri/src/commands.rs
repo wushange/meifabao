@@ -69,6 +69,8 @@ pub struct ImportMember {
     pub phone: String,
     pub level: Option<String>,
     pub balance: Option<f64>,
+    pub note: Option<String>,
+    pub total_spent: Option<f64>,
 }
 
 #[derive(Serialize)]
@@ -170,8 +172,8 @@ pub fn batch_import_members(db_path: tauri::State<PathBuf>, members: Vec<ImportM
         let exists: bool = c.query_row("SELECT 1 FROM members WHERE phone=?1", rusqlite::params![m.phone], |_| Ok(true)).unwrap_or(false);
         if exists { skip += 1; continue; }
         match c.execute(
-            "INSERT INTO members (name, phone, level, balance, note) VALUES (?1,?2,?3,?4,?5)",
-            rusqlite::params![m.name, m.phone, m.level.unwrap_or("普通".into()), m.balance.unwrap_or(0.0)],
+            "INSERT INTO members (name, phone, level, balance, note, total_spent) VALUES (?1,?2,?3,?4,?5,?6)",
+            rusqlite::params![m.name, m.phone, m.level.unwrap_or("普通".into()), m.balance.unwrap_or(0.0), m.note.unwrap_or("".into()), m.total_spent.unwrap_or(0.0)],
         ) { Ok(_) => ok += 1, Err(_) => skip += 1 }
     }
     Ok((ok, skip))

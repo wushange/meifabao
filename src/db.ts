@@ -82,7 +82,7 @@ export async function deleteMember(id: number): Promise<void> {
   await invoke("delete_member", { id });
 }
 
-export async function batchImportMembers(members: { name: string; phone: string; level?: string; balance?: number }[]): Promise<[number, number]> {
+export async function batchImportMembers(members: { name: string; phone: string; level?: string; balance?: number; note?: string; total_spent?: number }[]): Promise<[number, number]> {
   return await invoke<[number, number]>("batch_import_members", { members });
 }
 

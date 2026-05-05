@@ -102,10 +102,11 @@ body {
 .loading-logo { font-size: 48px; animation: pulse 1.5s infinite; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 .search-bar {
-  display: flex; gap: 10px; margin-bottom: 20px;
+  display: flex; gap: 10px; margin-bottom: 0;
   position: sticky; top: 0; z-index: 10;
   background: var(--bg);
-  padding: 4px 0 16px;
+  padding: 4px 28px 16px;
+  margin-left: -28px; margin-right: -28px;
 }
 
 .page-header {
@@ -117,7 +118,8 @@ body {
   gap: 10px;
   position: sticky; top: 0; z-index: 10;
   background: var(--bg);
-  padding: 4px 0 16px;
+  padding: 4px 28px 16px;
+  margin-left: -28px; margin-right: -28px;
 }
 .page-header h2 { font-size: var(--font-size-xl); font-weight: 700; }
 .page-actions { display: flex; gap: 8px; align-items: center; }
