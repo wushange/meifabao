@@ -15,8 +15,10 @@ export default function StatsPage({ members, records, recharges }: Props) {
     const todayRecharges = recharges.filter(r => new Date(r.created_at).toDateString() === today);
     const todayIncome = todayRecords.reduce((s, r) => s + r.amount, 0);
     const todayRechargeTotal = todayRecharges.reduce((s, r) => s + r.amount, 0);
+    // 储值总额 = 所有会员当前余额之和（即导入表格"储值金额"列的汇总）
     const totalBalance = members.reduce((s, m) => s + m.balance, 0);
-    const totalRechargeAmount = recharges.reduce((s, r) => s + r.amount, 0);
+    // 累计消费总额 = 所有会员 total_spent 之和
+    const totalSpent = members.reduce((s, m) => s + m.total_spent, 0);
 
     // 等级分布
     const levelDist: Record<string, number> = {};
@@ -45,7 +47,7 @@ export default function StatsPage({ members, records, recharges }: Props) {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5);
 
-    return { todayRecords, todayIncome, todayRechargeTotal, totalBalance, totalRechargeAmount, levelDist, last7Days, topServices };
+    return { todayRecords, todayIncome, todayRechargeTotal, totalBalance, totalSpent, levelDist, last7Days, topServices };
   }, [members, records, recharges]);
 
   return (
@@ -61,7 +63,11 @@ export default function StatsPage({ members, records, recharges }: Props) {
         </div>
         <div className="stat-card">
           <div className="stat-value">¥{stats.totalBalance.toFixed(0)}</div>
-          <div className="stat-label">💰 会员余额总计</div>
+          <div className="stat-label">💰 储值总额</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">¥{stats.totalSpent.toFixed(0)}</div>
+          <div className="stat-label">🛍️ 累计消费总额</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">{stats.todayRecords.length}</div>
@@ -74,10 +80,6 @@ export default function StatsPage({ members, records, recharges }: Props) {
         <div className="stat-card">
           <div className="stat-value">¥{stats.todayRechargeTotal.toFixed(0)}</div>
           <div className="stat-label">💳 今日充值</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">¥{stats.totalRechargeAmount.toFixed(0)}</div>
-          <div className="stat-label">🏦 储值总额</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">{records.length}</div>
