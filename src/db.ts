@@ -10,6 +10,7 @@ export interface MemberFull {
   total_spent: number;
   created_at: string;
   last_visit: string | null;
+  note: string;
 }
 
 export interface ServiceItem {
@@ -66,11 +67,11 @@ export async function searchMembers(keyword: string): Promise<MemberFull[]> {
   return await invoke<MemberFull[]>("search_members", { keyword });
 }
 
-export async function addMember(data: { name: string; phone: string; level: string; balance: number }): Promise<number> {
+export async function addMember(data: { name: string; phone: string; level: string; balance: number; note?: string }): Promise<number> {
   return await invoke<number>("add_member", { member: { id: null, ...data } });
 }
 
-export async function updateMember(id: number, data: Partial<{ name: string; phone: string; level: string; balance: number }>): Promise<void> {
+export async function updateMember(id: number, data: Partial<{ name: string; phone: string; level: string; balance: number; note: string }>): Promise<void> {
   const members = await getMembers();
   const current = members.find(m => m.id === id);
   if (!current) throw new Error("会员不存在");

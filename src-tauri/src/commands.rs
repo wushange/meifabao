@@ -11,6 +11,7 @@ pub struct Member {
     pub phone: String,
     pub level: Option<String>,
     pub balance: Option<f64>,
+    pub note: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -94,7 +95,7 @@ fn conn(db_path: &PathBuf) -> Result<Connection, String> {
 pub fn get_members(db_path: tauri::State<PathBuf>) -> Result<Vec<MemberFull>, String> {
     let c = conn(db_path.inner())?;
     let mut stmt = c.prepare(
-        "SELECT m.id, m.name, m.phone, m.level, m.balance, m.total_spent, m.created_at,
+        "SELECT m.id, m.name, m.phone, m.level, m.balance, m.total_spent, m.created_at, COALESCE(m.note,''),
                 (SELECT MAX(created_at) FROM records WHERE member_id=m.id) as last_visit
          FROM members m ORDER BY m.id DESC"
     ).map_err(|e| e.to_string())?;
@@ -115,7 +116,7 @@ pub fn search_members(db_path: tauri::State<PathBuf>, keyword: String) -> Result
     let c = conn(db_path.inner())?;
     let pattern = format!("%{}%", keyword);
     let mut stmt = c.prepare(
-        "SELECT m.id, m.name, m.phone, m.level, m.balance, m.total_spent, m.created_at,
+        "SELECT m.id, m.name, m.phone, m.level, m.balance, m.total_spent, m.created_at, COALESCE(m.note,''),
                 (SELECT MAX(created_at) FROM records WHERE member_id=m.id) as last_visit
          FROM members m WHERE m.phone LIKE ?1 OR m.name LIKE ?1
          ORDER BY m.id DESC LIMIT 20"
@@ -134,8 +135,9 @@ pub fn search_members(db_path: tauri::State<PathBuf>, keyword: String) -> Result
 pub fn add_member(db_path: tauri::State<PathBuf>, member: Member) -> Result<i32, String> {
     let c = conn(db_path.inner())?;
     c.execute(
-        "INSERT INTO members (name, phone, level, balance) VALUES (?1,?2,?3,?4)",
-        rusqlite::params![member.name, member.phone, member.level.unwrap_or("普通".into()), member.balance.unwrap_or(0.0)],
+        "INSERT INTO members (name, phone, level, balance, note) VALUES (?1,?2,?3,?4,?5)",
+        rusqlite::params![member.name, member.phone, member.level.unwrap_or("普通".into()), member.balance.unwrap_or(0.0),
+            member.note.unwrap_or("".into())],
     ).map_err(|e| e.to_string())?;
     Ok(c.last_insert_rowid() as i32)
 }
@@ -144,7 +146,7 @@ pub fn add_member(db_path: tauri::State<PathBuf>, member: Member) -> Result<i32,
 pub fn update_member(db_path: tauri::State<PathBuf>, member: Member) -> Result<(), String> {
     let c = conn(db_path.inner())?;
     c.execute(
-        "UPDATE members SET name=?1, phone=?2, level=?3, balance=?4 WHERE id=?5",
+        "UPDATE members SET name=?1, phone=?2, level=?3, balance=?4, note=?5 WHERE id=?6",
         rusqlite::params![member.name, member.phone, member.level, member.balance, member.id],
     ).map_err(|e| e.to_string())?;
     Ok(())
@@ -168,7 +170,7 @@ pub fn batch_import_members(db_path: tauri::State<PathBuf>, members: Vec<ImportM
         let exists: bool = c.query_row("SELECT 1 FROM members WHERE phone=?1", rusqlite::params![m.phone], |_| Ok(true)).unwrap_or(false);
         if exists { skip += 1; continue; }
         match c.execute(
-            "INSERT INTO members (name, phone, level, balance) VALUES (?1,?2,?3,?4)",
+            "INSERT INTO members (name, phone, level, balance, note) VALUES (?1,?2,?3,?4,?5)",
             rusqlite::params![m.name, m.phone, m.level.unwrap_or("普通".into()), m.balance.unwrap_or(0.0)],
         ) { Ok(_) => ok += 1, Err(_) => skip += 1 }
     }
@@ -450,7 +452,7 @@ fn chrono_now() -> String {
 
 fn get_members_impl(c: &Connection) -> Result<Vec<MemberFull>, String> {
     let mut stmt = c.prepare(
-        "SELECT id,name,phone,level,balance,total_spent,created_at FROM members ORDER BY id"
+        "SELECT id,name,phone,level,balance,total_spent,created_at,COALESCE(note,'') FROM members ORDER BY id"
     ).map_err(|e| e.to_string())?;
     let rows = stmt.query_map([], |row| {
         Ok(MemberFull {
@@ -552,7 +554,7 @@ pub fn daily_backup(db_path: tauri::State<PathBuf>, app_handle: tauri::AppHandle
     }
 
     let mut stmt = c.prepare(
-        "SELECT name, phone, level, balance, total_spent, created_at FROM members ORDER BY id"
+        "SELECT name, phone, level, balance, total_spent, created_at, COALESCE(note,'') FROM members ORDER BY id"
     ).map_err(|e| e.to_string())?;
 
     let rows = stmt.query_map([], |row| {
@@ -563,19 +565,21 @@ pub fn daily_backup(db_path: tauri::State<PathBuf>, app_handle: tauri::AppHandle
             row.get::<_, f64>(3)?,
             row.get::<_, f64>(4)?,
             row.get::<_, String>(5)?,
+            row.get::<_, String>(6)?,
         ))
     }).map_err(|e| e.to_string())?;
 
     let mut file = fs::File::create(&filepath).map_err(|e| e.to_string())?;
     file.write_all(b"\xEF\xBB\xBF").map_err(|e| e.to_string())?;
-    writeln!(file, "姓名,手机号,等级,余额,累计消费,注册时间").map_err(|e| e.to_string())?;
+    writeln!(file, "姓名,手机号,等级,余额,累计消费,注册时间,备注").map_err(|e| e.to_string())?;
 
     let mut count = 0;
     for row in rows {
-        let (name, phone, level, balance, total_spent, created_at) = row.map_err(|e| e.to_string())?;
-        writeln!(file, "{},{},{},{:.2},{:.2},{}",
+        let (name, phone, level, balance, total_spent, created_at, mem_note) = row.map_err(|e| e.to_string())?;
+        writeln!(file, "{},{},{},{:.2},{:.2},{},{}",
             csv_escape(&name), csv_escape(&phone), csv_escape(&level),
             balance, total_spent, csv_escape(&created_at),
+            csv_escape(&mem_note),
         ).map_err(|e| e.to_string())?;
         count += 1;
     }

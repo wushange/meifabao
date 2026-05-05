@@ -18,6 +18,7 @@ export default function MemberPage({ members, onReload }: Props) {
   const [phone, setPhone] = useState("");
   const [level, setLevel] = useState("普通");
   const [balance, setBalance] = useState("0");
+  const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
@@ -30,7 +31,7 @@ export default function MemberPage({ members, onReload }: Props) {
   const [showImport, setShowImport] = useState(false);
   const [importStep, setImportStep] = useState<"upload"|"mapping"|"preview"|"result">("upload");
   const [importData, setImportData] = useState<any[]>([]);
-  const [importMapping, setImportMapping] = useState({name:"",phone:"",level:"",balance:""});
+  const [importMapping, setImportMapping] = useState({name:"",phone:"",level:"",balance:"",note:""});
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [importResult, setImportResult] = useState<{ok:number;skip:number}|null>(null);
 
@@ -41,12 +42,12 @@ export default function MemberPage({ members, onReload }: Props) {
   }, [members, search]);
 
   function openAdd() {
-    setEditing(null); setName(""); setPhone(""); setLevel("普通"); setBalance("0");
+    setEditing(null); setName(""); setPhone(""); setLevel("普通"); setBalance("0"); setNote("");
     setError(""); setShowForm(true);
   }
   function openEdit(m: MemberFull) {
     setEditing(m); setName(m.name); setPhone(m.phone); setLevel(m.level);
-    setBalance(String(m.balance)); setError(""); setShowForm(true);
+    setBalance(String(m.balance)); setNote(m.note || ""); setError(""); setShowForm(true);
   }
 
   async function save() {
@@ -55,9 +56,9 @@ export default function MemberPage({ members, onReload }: Props) {
     setSubmitting(true);
     try {
       if (editing) {
-        await updateMember(editing.id, { name: name.trim(), phone: phone.trim(), level, balance: parseFloat(balance)||0 });
+        await updateMember(editing.id, { name: name.trim(), phone: phone.trim(), level, balance: parseFloat(balance)||0, note: note.trim() });
       } else {
-        await addMember({ name: name.trim(), phone: phone.trim(), level, balance: parseFloat(balance)||0 });
+        await addMember({ name: name.trim(), phone: phone.trim(), level, balance: parseFloat(balance)||0, note: note.trim() });
       }
       setShowForm(false); onReload();
     } catch (e: any) { setError(String(e)); }
@@ -95,6 +96,7 @@ export default function MemberPage({ members, onReload }: Props) {
         phone: cols.find(c => c.includes("手机")||c.includes("电话")||c.toLowerCase().includes("phone")) || cols[1]||"",
         level: cols.find(c => c.includes("等级")||c.includes("级别")) || "",
         balance: cols.find(c => c.includes("余额")||c.includes("金额")) || "",
+        note: cols.find(c => c.includes("备注")||c.toLowerCase().includes("note")) || "",
       });
       setImportStep("mapping");
     };
@@ -107,6 +109,7 @@ export default function MemberPage({ members, onReload }: Props) {
       phone: String(r[importMapping.phone]||"").trim(),
       level: String(r[importMapping.level]||"普通").trim() || "普通",
       balance: parseFloat(r[importMapping.balance]) || 0,
+      note: String(r[importMapping.note]||"").trim(),
     })).filter((m: any) => m.name && m.phone);
     setImportPreview(preview); setImportStep("preview");
   }
@@ -134,7 +137,7 @@ export default function MemberPage({ members, onReload }: Props) {
       <div className="table-wrap">
         <table className="table">
           <thead>
-            <tr><th>姓名</th><th>手机号</th><th>等级</th><th>余额</th><th>累计消费</th><th>注册时间</th><th>操作</th></tr>
+            <tr><th>姓名</th><th>手机号</th><th>等级</th><th>余额</th><th>累计消费</th><th>备注</th><th>注册时间</th><th>操作</th></tr>
           </thead>
           <tbody>
             {filtered.map(m => (
@@ -144,6 +147,7 @@ export default function MemberPage({ members, onReload }: Props) {
                 <td><span className={`level-tag level-${m.level}`}>{m.level}</span></td>
                 <td className="money">¥{m.balance.toFixed(2)}</td>
                 <td className="money">¥{(m.total_spent||0).toFixed(2)}</td>
+                <td className="note">{m.note}</td>
                 <td className="date">{m.created_at?.slice(0,10)}</td>
                 <td className="actions">
                   <button className="btn btn-sm btn-outline" onClick={() => openEdit(m)}>编辑</button>
@@ -173,6 +177,8 @@ export default function MemberPage({ members, onReload }: Props) {
             </select>
             <label>余额</label>
             <input className="input" type="number" value={balance} onChange={e => setBalance(e.target.value)} />
+            <label>备注</label>
+            <input className="input" value={note} onChange={e => setNote(e.target.value)} />
             <div className="modal-actions">
               <button className="btn" onClick={() => setShowForm(false)}>取消</button>
               <button className="btn btn-primary" onClick={save} disabled={submitting}>{submitting?"保存中...":"保存"}</button>
@@ -211,9 +217,9 @@ export default function MemberPage({ members, onReload }: Props) {
             {importStep === "mapping" && (
               <div>
                 <p>请确认列映射：</p>
-                {(["name","phone","level","balance"] as const).map(f => (
+                {(["name","phone","level","balance","note"] as const).map(f => (
                   <div key={f} className="form-row">
-                    <label>{f==="name"?"姓名":f==="phone"?"手机号":f==="level"?"等级":"余额"}</label>
+                    <label>{f==="name"?"姓名":f==="phone"?"手机号":f==="level"?"等级":f==="balance"?"余额":"备注"}</label>
                     <select className="input" value={importMapping[f]} onChange={e => setImportMapping({...importMapping, [f]: e.target.value})}>
                       <option value="">不映射</option>
                       {Object.keys(importData[0]||{}).map(col => <option key={col} value={col}>{col}</option>)}

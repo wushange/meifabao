@@ -15,10 +15,14 @@ pub fn init_db(db_path: &Path) -> rusqlite::Result<()> {
             level TEXT DEFAULT '普通',
             balance REAL DEFAULT 0.0,
             total_spent REAL DEFAULT 0.0,
-            created_at TEXT DEFAULT (datetime('now','localtime'))
+            created_at TEXT DEFAULT (datetime('now','localtime')),
+            note TEXT DEFAULT ''
         )",
         (),
     )?;
+
+    // 兼容旧库：加 note 列
+    let _ = conn.execute("ALTER TABLE members ADD COLUMN note TEXT DEFAULT ''", ());
 
     // 服务表
     conn.execute(
