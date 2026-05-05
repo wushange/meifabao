@@ -153,6 +153,7 @@ export default function MemberPage({ members, onReload }: Props) {
             </div>
           </div>
         </div>
+      )}
     </div>
   );
 }
