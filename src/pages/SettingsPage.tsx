@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { LevelInfo, updateLevel, exportAllData, clearAllData } from "../db";
+import * as XLSX from "xlsx";
+import { LevelInfo, updateLevel, exportAllData, clearAllData, batchImportMembers } from "../db";
 
 interface Props {
   levels: LevelInfo[];
@@ -8,6 +9,14 @@ interface Props {
 
 export default function SettingsPage({ levels, onReload }: Props) {
   const [toast, setToast] = useState("");
+
+  // Excel 导入状态
+  const [showImport, setShowImport] = useState(false);
+  const [importStep, setImportStep] = useState<"upload"|"mapping"|"preview"|"result">("upload");
+  const [importData, setImportData] = useState<any[]>([]);
+  const [importMapping, setImportMapping] = useState({name:"",phone:"",level:"",balance:"",note:"",totalSpent:""});
+  const [importPreview, setImportPreview] = useState<any[]>([]);
+  const [importResult, setImportResult] = useState<{ok:number;skip:number}|null>(null);
 
   async function handleUpdateLevel(name: string, field: "discount"|"threshold", value: number) {
     const lv = levels.find(l => l.name === name);
@@ -45,6 +54,52 @@ export default function SettingsPage({ levels, onReload }: Props) {
     } catch (e) { setToast("清空失败: "+e); }
   }
 
+  // Excel 导入
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const wb = XLSX.read(new Uint8Array(ev.target!.result as ArrayBuffer), {type:"array"});
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+      setImportData(rows);
+      const cols = Object.keys(rows[0] || {});
+      setImportMapping({
+        name: cols.find(c => c.includes("姓名")||c.toLowerCase().includes("name")) || cols[0]||"",
+        phone: cols.find(c => c.includes("手机")||c.includes("电话")||c.toLowerCase().includes("phone")) || cols[1]||"",
+        level: cols.find(c => c.includes("等级")||c.includes("级别")) || "",
+        balance: cols.find(c => c.includes("余额")||c.includes("金额")) || "",
+        note: cols.find(c => c.includes("备注")||c.toLowerCase().includes("note")) || "",
+        totalSpent: cols.find(c => c.includes("储值")||c.includes("充值")) || "",
+      });
+      setImportStep("mapping");
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function previewImport() {
+    const preview = importData.map((r: any) => {
+      const bal = parseFloat(r[importMapping.balance]) || 0;
+      const stored = parseFloat(r[importMapping.totalSpent]) || 0;
+      const totalSpent = stored > 0 ? Math.max(0, stored - bal) : 0;
+      return {
+        name: String(r[importMapping.name]||"").trim(),
+        phone: String(r[importMapping.phone]||"").trim(),
+        level: String(r[importMapping.level]||"普通").trim() || "普通",
+        balance: bal,
+        note: String(r[importMapping.note]||"").trim(),
+        total_spent: totalSpent,
+      };
+    }).filter((m: any) => m.name && m.phone);
+    setImportPreview(preview); setImportStep("preview");
+  }
+
+  async function doImport() {
+    try {
+      const [ok, skip] = await batchImportMembers(importPreview);
+      setImportResult({ ok, skip }); setImportStep("result"); onReload();
+    } catch (e) { setToast("导入失败: "+e); }
+  }
+
   return (
     <div className="page">
       {toast && <div className="toast" onClick={() => setToast("")}>{toast}</div>}
@@ -60,27 +115,17 @@ export default function SettingsPage({ levels, onReload }: Props) {
               <tr key={lv.name}>
                 <td><span className={`level-tag level-${lv.name}`}>{lv.name}</span></td>
                 <td>
-                  <input
-                    className="input input-sm"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="1"
+                  <input className="input input-sm" type="number" step="0.01" min="0" max="1"
                     value={lv.discount}
                     onChange={e => handleUpdateLevel(lv.name, "discount", parseFloat(e.target.value)||0)}
-                    style={{width: 100}}
-                  />
+                    style={{width: 100}} />
                   <span style={{marginLeft: 4}}>（{(lv.discount*100).toFixed(0)}%）</span>
                 </td>
                 <td>
-                  <input
-                    className="input input-sm"
-                    type="number"
-                    min="0"
+                  <input className="input input-sm" type="number" min="0"
                     value={lv.threshold}
                     onChange={e => handleUpdateLevel(lv.name, "threshold", parseFloat(e.target.value)||0)}
-                    style={{width: 100}}
-                  />
+                    style={{width: 100}} />
                   <span style={{marginLeft: 4}}>元</span>
                 </td>
               </tr>
@@ -92,11 +137,59 @@ export default function SettingsPage({ levels, onReload }: Props) {
       <div className="settings-section">
         <h3>数据管理</h3>
         <div className="settings-actions">
+          <button className="btn btn-outline" onClick={() => { setShowImport(true); setImportStep("upload"); }}>📥 导入Excel</button>
           <button className="btn btn-primary" onClick={handleExport}>📤 导出备份</button>
           <button className="btn btn-danger" onClick={handleClear}>🗑 清空数据</button>
         </div>
-        <p className="hint">备份文件为 JSON 格式，可用于数据迁移。清空数据前请先备份。</p>
+        <p className="hint">导入：支持 .xlsx/.xls 文件，首次使用时可批量导入会员。备份为 JSON 格式，清空前请先备份。</p>
       </div>
+
+      {/* Excel 导入弹窗 */}
+      {showImport && (
+        <div className="modal-overlay" onClick={() => setShowImport(false)}>
+          <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
+            <h3>📥 导入会员</h3>
+            {importStep === "upload" && (
+              <div>
+                <p>请选择 .xlsx 或 .xls 文件，将自动识别列名</p>
+                <input type="file" accept=".xlsx,.xls" onChange={handleFile} />
+              </div>
+            )}
+            {importStep === "mapping" && (
+              <div>
+                <p>请确认列映射：</p>
+                {(["name","phone","level","balance","note","totalSpent"] as const).map(f => (
+                  <div key={f} className="form-row">
+                    <label>{f==="name"?"姓名":f==="phone"?"手机号":f==="level"?"等级":f==="balance"?"余额":f==="note"?"备注":"储值金额"}</label>
+                    <select className="input" value={importMapping[f]} onChange={e => setImportMapping({...importMapping, [f]: e.target.value})}>
+                      <option value="">不映射</option>
+                      {Object.keys(importData[0]||{}).map(col => <option key={col} value={col}>{col}</option>)}
+                    </select>
+                  </div>
+                ))}
+                <button className="btn btn-primary" onClick={previewImport}>预览</button>
+              </div>
+            )}
+            {importStep === "preview" && (
+              <div>
+                <p>共 {importPreview.length} 条数据，预览前10条：</p>
+                <table className="table"><thead><tr><th>姓名</th><th>手机号</th><th>等级</th><th>余额</th><th>累计消费</th></tr></thead>
+                  <tbody>{importPreview.slice(0,10).map((m:any,i:number) => (
+                    <tr key={i}><td>{m.name}</td><td>{m.phone}</td><td>{m.level}</td><td>¥{m.balance}</td><td>¥{(m.total_spent||0).toFixed(2)}</td></tr>
+                  ))}</tbody>
+                </table>
+                <button className="btn btn-success" onClick={doImport}>确认导入</button>
+              </div>
+            )}
+            {importStep === "result" && importResult && (
+              <div>
+                <p>✅ 导入完成！成功 {importResult.ok} 条，跳过 {importResult.skip} 条（重复）</p>
+                <button className="btn btn-primary" onClick={() => setShowImport(false)}>关闭</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,8 +1,7 @@
 import { useState, useMemo } from "react";
-import * as XLSX from "xlsx";
 import {
   MemberFull, addMember, updateMember, deleteMember,
-  batchImportMembers, recharge, getRecharges, RechargeItem,
+  recharge,
 } from "../db";
 
 interface Props {
@@ -26,14 +25,6 @@ export default function MemberPage({ members, onReload }: Props) {
   // 充值弹窗
   const [showRecharge, setShowRecharge] = useState<MemberFull | null>(null);
   const [rechargeAmount, setRechargeAmount] = useState("");
-
-  // Excel 导入
-  const [showImport, setShowImport] = useState(false);
-  const [importStep, setImportStep] = useState<"upload"|"mapping"|"preview"|"result">("upload");
-  const [importData, setImportData] = useState<any[]>([]);
-  const [importMapping, setImportMapping] = useState({name:"",phone:"",level:"",balance:"",note:"",totalSpent:""});
-  const [importPreview, setImportPreview] = useState<any[]>([]);
-  const [importResult, setImportResult] = useState<{ok:number;skip:number}|null>(null);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return members;
@@ -82,52 +73,6 @@ export default function MemberPage({ members, onReload }: Props) {
     } catch (e) { setToast("充值失败: "+e); }
   }
 
-  // Excel 导入
-  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const wb = XLSX.read(new Uint8Array(ev.target!.result as ArrayBuffer), {type:"array"});
-      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-      setImportData(rows);
-      const cols = Object.keys(rows[0] || {});
-      setImportMapping({
-        name: cols.find(c => c.includes("姓名")||c.toLowerCase().includes("name")) || cols[0]||"",
-        phone: cols.find(c => c.includes("手机")||c.includes("电话")||c.toLowerCase().includes("phone")) || cols[1]||"",
-        level: cols.find(c => c.includes("等级")||c.includes("级别")) || "",
-        balance: cols.find(c => c.includes("余额")||c.includes("金额")) || "",
-        note: cols.find(c => c.includes("备注")||c.toLowerCase().includes("note")) || "",
-        totalSpent: cols.find(c => c.includes("储值")||c.includes("充值")) || "",
-      });
-      setImportStep("mapping");
-    };
-    reader.readAsArrayBuffer(file);
-  }
-
-  function previewImport() {
-    const preview = importData.map((r: any) => {
-      const bal = parseFloat(r[importMapping.balance]) || 0;
-      const stored = parseFloat(r[importMapping.totalSpent]) || 0;
-      // 累计消费 = 储值金额 - 余额
-      const totalSpent = stored > 0 ? Math.max(0, stored - bal) : 0;
-      return {
-        name: String(r[importMapping.name]||"").trim(),
-        phone: String(r[importMapping.phone]||"").trim(),
-        level: String(r[importMapping.level]||"普通").trim() || "普通",
-        balance: bal,
-        note: String(r[importMapping.note]||"").trim(),
-        total_spent: totalSpent,
-      };
-    }).filter((m: any) => m.name && m.phone);
-    setImportPreview(preview); setImportStep("preview");
-  }
-
-  async function doImport() {
-    try {
-      const [ok, skip] = await batchImportMembers(importPreview);
-      setImportResult({ ok, skip }); setImportStep("result"); onReload();
-    } catch (e) { setToast("导入失败: "+e); }
-  }
 
   return (
     <div className="page">
@@ -137,7 +82,6 @@ export default function MemberPage({ members, onReload }: Props) {
         <h2>👥 会员管理 ({members.length})</h2>
         <div className="page-actions">
           <input className="input" placeholder="搜索会员..." value={search} onChange={e => setSearch(e.target.value)} />
-          <button className="btn btn-outline" onClick={() => setShowImport(true)}>📥 导入Excel</button>
           <button className="btn btn-primary" onClick={openAdd}>+ 新增会员</button>
         </div>
       </div>
@@ -209,54 +153,6 @@ export default function MemberPage({ members, onReload }: Props) {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Excel 导入弹窗 */}
-      {showImport && (
-        <div className="modal-overlay" onClick={() => setShowImport(false)}>
-          <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
-            <h3>📥 导入会员</h3>
-            {importStep === "upload" && (
-              <div>
-                <p>请选择 .xlsx 或 .xls 文件</p>
-                <input type="file" accept=".xlsx,.xls" onChange={handleFile} />
-              </div>
-            )}
-            {importStep === "mapping" && (
-              <div>
-                <p>请确认列映射：</p>
-                {(["name","phone","level","balance","note","totalSpent"] as const).map(f => (
-                  <div key={f} className="form-row">
-                    <label>{f==="name"?"姓名":f==="phone"?"手机号":f==="level"?"等级":f==="balance"?"余额":f==="note"?"备注":"储值金额"}</label>
-                    <select className="input" value={importMapping[f]} onChange={e => setImportMapping({...importMapping, [f]: e.target.value})}>
-                      <option value="">不映射</option>
-                      {Object.keys(importData[0]||{}).map(col => <option key={col} value={col}>{col}</option>)}
-                    </select>
-                  </div>
-                ))}
-                <button className="btn btn-primary" onClick={previewImport}>预览</button>
-              </div>
-            )}
-            {importStep === "preview" && (
-              <div>
-                <p>共 {importPreview.length} 条数据，预览前10条：</p>
-                <table className="table"><thead><tr><th>姓名</th><th>手机号</th><th>等级</th><th>余额</th><th>累计消费</th></tr></thead>
-                  <tbody>{importPreview.slice(0,10).map((m:any,i:number) => (
-                    <tr key={i}><td>{m.name}</td><td>{m.phone}</td><td>{m.level}</td><td>¥{m.balance}</td><td>¥{(m.total_spent||0).toFixed(2)}</td></tr>
-                  ))}</tbody>
-                </table>
-                <button className="btn btn-success" onClick={doImport}>确认导入</button>
-              </div>
-            )}
-            {importStep === "result" && importResult && (
-              <div>
-                <p>✅ 导入完成！成功 {importResult.ok} 条，跳过 {importResult.skip} 条（重复）</p>
-                <button className="btn btn-primary" onClick={() => setShowImport(false)}>关闭</button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
