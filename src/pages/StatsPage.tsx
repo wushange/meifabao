@@ -63,7 +63,7 @@ export default function StatsPage({ members, records, recharges }: Props) {
         </div>
         <div className="stat-card">
           <div className="stat-value">¥{stats.totalBalance.toFixed(0)}</div>
-          <div className="stat-label">💰 储值总额</div>
+          <div className="stat-label">💰 会员余额</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">¥{stats.totalSpent.toFixed(0)}</div>
