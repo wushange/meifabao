@@ -1,6 +1,7 @@
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use rust_xlsxwriter::{Workbook, Format, FormatAlign, Color};
 
 // ── 数据结构 ──
 
@@ -464,10 +465,7 @@ pub fn clear_all_data(db_path: tauri::State<PathBuf>) -> Result<(), String> {
 
 // ── 内部辅助（不用#[tauri::command]，供 export 复用）──
 
-fn chrono_now() -> String {
-    // 简单时间戳，不引入 chrono 依赖
-    "".to_string() // 前端会填
-}
+fn chrono_now() -> String { "".to_string() }
 
 fn get_members_impl(c: &Connection) -> Result<Vec<MemberFull>, String> {
     let mut stmt = c.prepare(
@@ -539,6 +537,43 @@ fn get_recharges_impl(c: &Connection, member_id: Option<i32>) -> Result<Vec<Rech
     }
 }
 
+// ── 备份配置 ──
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct BackupConfig {
+    pub backup_dir: String,
+    pub backup_keep_days: u32,
+    pub backup_hour: u32,
+}
+
+#[tauri::command]
+pub fn get_backup_config(db_path: tauri::State<PathBuf>) -> Result<BackupConfig, String> {
+    let c = conn(db_path.inner())?;
+    let get = |key: &str| -> String {
+        c.query_row("SELECT value FROM settings WHERE key=?1", rusqlite::params![key], |r| r.get(0))
+            .unwrap_or_default()
+    };
+    Ok(BackupConfig {
+        backup_dir: get("backup_dir"),
+        backup_keep_days: get("backup_keep_days").parse().unwrap_or(30),
+        backup_hour: get("backup_hour").parse().unwrap_or(2),
+    })
+}
+
+#[tauri::command]
+pub fn save_backup_config(db_path: tauri::State<PathBuf>, config: BackupConfig) -> Result<(), String> {
+    let c = conn(db_path.inner())?;
+    let set = |key: &str, val: &str| -> Result<(), String> {
+        c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+            rusqlite::params![key, val]).map_err(|e| e.to_string())?;
+        Ok(())
+    };
+    set("backup_dir", &config.backup_dir)?;
+    set("backup_keep_days", &config.backup_keep_days.to_string())?;
+    set("backup_hour", &config.backup_hour.to_string())?;
+    Ok(())
+}
+
 // ── 每日自动备份 ──
 
 #[derive(Serialize)]
@@ -548,20 +583,91 @@ pub struct BackupResult {
     pub message: String,
 }
 
+/// 写 xlsx 会员数据到指定路径
+fn write_members_xlsx(c: &Connection, filepath: &std::path::Path) -> Result<usize, String> {
+    let mut stmt = c.prepare(
+        "SELECT name, phone, level, balance, total_spent, created_at, COALESCE(note,'') FROM members ORDER BY id"
+    ).map_err(|e| e.to_string())?;
+
+    let rows: Vec<(String,String,String,f64,f64,String,String)> = stmt.query_map([], |row| {
+        Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?))
+    }).map_err(|e| e.to_string())?
+    .collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+
+    let count = rows.len();
+
+    let mut workbook = Workbook::new();
+    let sheet = workbook.add_worksheet();
+    sheet.set_name("会员数据").map_err(|e| e.to_string())?;
+
+    let header_fmt = Format::new()
+        .set_background_color(Color::RGB(0xC9952A))
+        .set_font_color(Color::White)
+        .set_bold()
+        .set_align(FormatAlign::Center);
+    let money_fmt = Format::new().set_num_format("0.00");
+
+    let headers = ["姓名", "手机号", "等级", "余额", "累计消费", "注册时间", "备注"];
+    let col_widths: [f64; 7] = [12.0, 15.0, 8.0, 12.0, 12.0, 20.0, 20.0];
+
+    for (i, h) in headers.iter().enumerate() {
+        sheet.write_with_format(0, i as u16, *h, &header_fmt).map_err(|e| e.to_string())?;
+        sheet.set_column_width(i as u16, col_widths[i]).map_err(|e| e.to_string())?;
+    }
+    sheet.set_row_height(0, 20.0).map_err(|e| e.to_string())?;
+
+    for (ri, (name, phone, level, balance, total_spent, created_at, note)) in rows.iter().enumerate() {
+        let row = (ri + 1) as u32;
+        sheet.write(row, 0, name.as_str()).map_err(|e| e.to_string())?;
+        sheet.write(row, 1, phone.as_str()).map_err(|e| e.to_string())?;
+        sheet.write(row, 2, level.as_str()).map_err(|e| e.to_string())?;
+        sheet.write_with_format(row, 3, *balance, &money_fmt).map_err(|e| e.to_string())?;
+        sheet.write_with_format(row, 4, *total_spent, &money_fmt).map_err(|e| e.to_string())?;
+        sheet.write(row, 5, created_at.as_str()).map_err(|e| e.to_string())?;
+        sheet.write(row, 6, note.as_str()).map_err(|e| e.to_string())?;
+    }
+
+    workbook.save(filepath).map_err(|e| e.to_string())?;
+    Ok(count)
+}
+
 #[tauri::command]
 pub fn daily_backup(db_path: tauri::State<PathBuf>, app_handle: tauri::AppHandle) -> Result<BackupResult, String> {
     use std::fs;
-    use std::io::Write;
     use tauri::Manager;
 
     let c = conn(db_path.inner())?;
 
-    let data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
-    let backup_dir = data_dir.join("backups");
+    // 读取配置
+    let get_cfg = |key: &str, default: &str| -> String {
+        c.query_row("SELECT value FROM settings WHERE key=?1", rusqlite::params![key], |r| r.get(0))
+            .unwrap_or_else(|_| default.to_string())
+    };
+    let backup_dir_cfg = get_cfg("backup_dir", "");
+    let keep_days: usize = get_cfg("backup_keep_days", "30").parse().unwrap_or(30);
+    let backup_hour: u32 = get_cfg("backup_hour", "2").parse().unwrap_or(2);
+
+    // 判断当前小时是否已过备份时间点
+    let now_hour = chrono_now_hour();
+    if now_hour < backup_hour {
+        return Ok(BackupResult {
+            backed_up: false,
+            path: "".to_string(),
+            message: format!("未到备份时间（配置 {:02}:00）", backup_hour),
+        });
+    }
+
+    // 确定备份目录
+    let backup_dir = if backup_dir_cfg.is_empty() {
+        let data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+        data_dir.join("backups")
+    } else {
+        PathBuf::from(&backup_dir_cfg)
+    };
     fs::create_dir_all(&backup_dir).map_err(|e| e.to_string())?;
 
     let today = chrono_now_str();
-    let filename = format!("members_{}.csv", today);
+    let filename = format!("members_{}.xlsx", today);
     let filepath = backup_dir.join(&filename);
 
     if filepath.exists() {
@@ -572,46 +678,20 @@ pub fn daily_backup(db_path: tauri::State<PathBuf>, app_handle: tauri::AppHandle
         });
     }
 
-    let mut stmt = c.prepare(
-        "SELECT name, phone, level, balance, total_spent, created_at, COALESCE(note,'') FROM members ORDER BY id"
-    ).map_err(|e| e.to_string())?;
+    let count = write_members_xlsx(&c, &filepath)?;
 
-    let rows = stmt.query_map([], |row| {
-        Ok((
-            row.get::<_, String>(0)?,
-            row.get::<_, String>(1)?,
-            row.get::<_, String>(2)?,
-            row.get::<_, f64>(3)?,
-            row.get::<_, f64>(4)?,
-            row.get::<_, String>(5)?,
-            row.get::<_, String>(6)?,
-        ))
-    }).map_err(|e| e.to_string())?;
-
-    let mut file = fs::File::create(&filepath).map_err(|e| e.to_string())?;
-    file.write_all(b"\xEF\xBB\xBF").map_err(|e| e.to_string())?;
-    writeln!(file, "姓名,手机号,等级,余额,累计消费,注册时间,备注").map_err(|e| e.to_string())?;
-
-    let mut count = 0;
-    for row in rows {
-        let (name, phone, level, balance, total_spent, created_at, mem_note) = row.map_err(|e| e.to_string())?;
-        writeln!(file, "{},{},{},{:.2},{:.2},{},{}",
-            csv_escape(&name), csv_escape(&phone), csv_escape(&level),
-            balance, total_spent, csv_escape(&created_at),
-            csv_escape(&mem_note),
-        ).map_err(|e| e.to_string())?;
-        count += 1;
-    }
-
-    // 保留最近 30 天
+    // 清理旧备份
     if let Ok(entries) = fs::read_dir(&backup_dir) {
         let mut files: Vec<_> = entries
             .filter_map(|e| e.ok())
-            .filter(|e| e.file_name().to_string_lossy().ends_with(".csv"))
+            .filter(|e| {
+                let n = e.file_name().to_string_lossy().to_string();
+                n.starts_with("members_") && n.ends_with(".xlsx")
+            })
             .collect();
         files.sort_by_key(|e| e.metadata().and_then(|m| m.modified()).unwrap_or(std::time::SystemTime::UNIX_EPOCH));
-        if files.len() > 30 {
-            for old in files.iter().take(files.len() - 30) {
+        if files.len() > keep_days {
+            for old in files.iter().take(files.len() - keep_days) {
                 let _ = fs::remove_file(old.path());
             }
         }
@@ -624,10 +704,66 @@ pub fn daily_backup(db_path: tauri::State<PathBuf>, app_handle: tauri::AppHandle
     })
 }
 
+#[tauri::command]
+pub fn manual_backup(db_path: tauri::State<PathBuf>, app_handle: tauri::AppHandle) -> Result<BackupResult, String> {
+    use std::fs;
+    use tauri::Manager;
+
+    let c = conn(db_path.inner())?;
+    let backup_dir_cfg: String = c.query_row(
+        "SELECT value FROM settings WHERE key='backup_dir'", [], |r| r.get(0)
+    ).unwrap_or_default();
+
+    let backup_dir = if backup_dir_cfg.is_empty() {
+        let data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+        data_dir.join("backups")
+    } else {
+        PathBuf::from(&backup_dir_cfg)
+    };
+    fs::create_dir_all(&backup_dir).map_err(|e| e.to_string())?;
+
+    let now = chrono_now_str_full();
+    let filename = format!("members_manual_{}.xlsx", now);
+    let filepath = backup_dir.join(&filename);
+
+    let count = write_members_xlsx(&c, &filepath)?;
+
+    Ok(BackupResult {
+        backed_up: true,
+        path: filepath.to_string_lossy().to_string(),
+        message: format!("手动备份成功！共 {} 名会员\n路径：{}", count, filepath.to_string_lossy()),
+    })
+}
+
 fn chrono_now_str() -> String {
     use std::time::SystemTime;
-    let dur = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default();
-    let total_days = (dur.as_secs() / 86400) as i32;
+    let (year, month, day, _, _, _) = epoch_to_local();
+    let _ = SystemTime::now(); // suppress unused warning
+    format!("{:04}-{:02}-{:02}", year, month, day)
+}
+
+fn chrono_now_str_full() -> String {
+    let (year, month, day, hour, min, sec) = epoch_to_local();
+    format!("{:04}{:02}{:02}_{:02}{:02}{:02}", year, month, day, hour, min, sec)
+}
+
+fn chrono_now_hour() -> u32 {
+    epoch_to_local().3
+}
+
+/// 将 Unix 秒转换为 (year, month, day, hour, min, sec) UTC+8
+fn epoch_to_local() -> (i32, u32, u32, u32, u32, u32) {
+    use std::time::SystemTime;
+    let secs = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64 + 8 * 3600; // UTC+8
+
+    let sec = (secs % 60) as u32;
+    let min = ((secs / 60) % 60) as u32;
+    let hour = ((secs / 3600) % 24) as u32;
+
+    let total_days = (secs / 86400) as i32;
     let mut year = 1970i32;
     let mut remaining = total_days;
     loop {
@@ -637,23 +773,18 @@ fn chrono_now_str() -> String {
         year += 1;
     }
     let mdays = if is_leap(year) {
-        [31,29,31,30,31,30,31,31,30,31,30,31]
+        [31i32,29,31,30,31,30,31,31,30,31,30,31]
     } else {
-        [31,28,31,30,31,30,31,31,30,31,30,31]
+        [31i32,28,31,30,31,30,31,31,30,31,30,31]
     };
-    let mut month = 1;
+    let mut month = 1u32;
     for &md in mdays.iter() {
         if remaining < md { break; }
         remaining -= md;
         month += 1;
     }
-    format!("{:04}-{:02}-{:02}", year, month, remaining + 1)
+    (year, month, (remaining + 1) as u32, hour, min, sec)
 }
 
 fn is_leap(y: i32) -> bool { (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0) }
 
-fn csv_escape(s: &str) -> String {
-    if s.contains(',') || s.contains('"') || s.contains('\n') {
-        format!("\"{}\"", s.replace('"', "\"\""))
-    } else { s.to_string() }
-}

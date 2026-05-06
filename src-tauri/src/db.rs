@@ -103,5 +103,22 @@ pub fn init_db(db_path: &Path) -> rusqlite::Result<()> {
         )?;
     }
 
+    // 设置表（key-value 存储）
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )",
+        (),
+    )?;
+
+    // 插入默认备份配置
+    conn.execute_batch(
+        "INSERT OR IGNORE INTO settings (key, value) VALUES
+         ('backup_dir', ''),
+         ('backup_keep_days', '30'),
+         ('backup_hour', '2');"
+    )?;
+
     Ok(())
 }

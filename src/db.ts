@@ -151,6 +151,24 @@ export interface DailyBackupResult {
   message: string;
 }
 
+export interface BackupConfig {
+  backup_dir: string;
+  backup_keep_days: number;
+  backup_hour: number;
+}
+
 export async function dailyBackup(): Promise<DailyBackupResult> {
   return await invoke<DailyBackupResult>("daily_backup");
+}
+
+export async function manualBackup(): Promise<DailyBackupResult> {
+  return await invoke<DailyBackupResult>("manual_backup");
+}
+
+export async function getBackupConfig(): Promise<BackupConfig> {
+  return await invoke<BackupConfig>("get_backup_config");
+}
+
+export async function saveBackupConfig(config: BackupConfig): Promise<void> {
+  await invoke("save_backup_config", { config });
 }

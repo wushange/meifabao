@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import * as XLSX from "xlsx";
-import { LevelInfo, updateLevel, exportAllData, clearAllData, batchImportMembers } from "../db";
+import {
+  LevelInfo, updateLevel, exportAllData, clearAllData, batchImportMembers,
+  BackupConfig, getBackupConfig, saveBackupConfig, manualBackup,
+} from "../db";
 
 interface Props {
   levels: LevelInfo[];
@@ -9,6 +12,33 @@ interface Props {
 
 export default function SettingsPage({ levels, onReload }: Props) {
   const [toast, setToast] = useState("");
+
+  // 备份配置
+  const [backupConfig, setBackupConfig] = useState<BackupConfig>({ backup_dir: "", backup_keep_days: 30, backup_hour: 2 });
+  const [backupSaving, setBackupSaving] = useState(false);
+  const [backupRunning, setBackupRunning] = useState(false);
+
+  useEffect(() => {
+    getBackupConfig().then(setBackupConfig).catch(() => {});
+  }, []);
+
+  async function handleSaveBackupConfig() {
+    setBackupSaving(true);
+    try {
+      await saveBackupConfig(backupConfig);
+      setToast("✅ 备份配置已保存");
+    } catch (e) { setToast("保存失败: " + e); }
+    finally { setBackupSaving(false); }
+  }
+
+  async function handleManualBackup() {
+    setBackupRunning(true);
+    try {
+      const r = await manualBackup();
+      setToast("✅ " + r.message);
+    } catch (e) { setToast("备份失败: " + e); }
+    finally { setBackupRunning(false); }
+  }
 
   // Excel 导入状态
   const [showImport, setShowImport] = useState(false);
@@ -227,6 +257,61 @@ export default function SettingsPage({ levels, onReload }: Props) {
           </div>
         </div>
       )}
+
+      <div className="settings-section">
+        <h3>🗂️ 自动备份</h3>
+        <p className="section-desc">每次启动应用时自动检查并备份会员数据为 .xlsx 文件</p>
+
+        <div className="backup-config">
+          <div className="backup-config-row">
+            <label>备份文件夹</label>
+            <div style={{flex:1,display:"flex",gap:8}}>
+              <input
+                className="input"
+                placeholder="留空则使用默认路径（应用数据目录/backups）"
+                value={backupConfig.backup_dir}
+                onChange={e => setBackupConfig({...backupConfig, backup_dir: e.target.value})}
+              />
+            </div>
+          </div>
+          <div className="backup-config-row">
+            <label>保留天数</label>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <input
+                className="input input-sm"
+                type="number" min={1} max={365}
+                value={backupConfig.backup_keep_days}
+                onChange={e => setBackupConfig({...backupConfig, backup_keep_days: parseInt(e.target.value)||30})}
+                style={{width:80}}
+              />
+              <span style={{color:"var(--text-secondary)",fontSize:"var(--font-size-sm)"}}>天（超出后自动删除最旧备份）</span>
+            </div>
+          </div>
+          <div className="backup-config-row">
+            <label>备份时间</label>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <input
+                className="input input-sm"
+                type="number" min={0} max={23}
+                value={backupConfig.backup_hour}
+                onChange={e => setBackupConfig({...backupConfig, backup_hour: parseInt(e.target.value)||0})}
+                style={{width:80}}
+              />
+              <span style={{color:"var(--text-secondary)",fontSize:"var(--font-size-sm)"}}>时（每天该时间点后首次启动才执行备份）</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="settings-actions" style={{marginTop:14}}>
+          <button className="btn btn-primary" onClick={handleSaveBackupConfig} disabled={backupSaving}>
+            {backupSaving ? "保存中..." : "💾 保存配置"}
+          </button>
+          <button className="btn btn-outline" onClick={handleManualBackup} disabled={backupRunning}>
+            {backupRunning ? "备份中..." : "📦 立即备份"}
+          </button>
+        </div>
+        <p className="hint">备份格式为 .xlsx，文件名格式：members_YYYY-MM-DD.xlsx。手动备份文件名会加时间戳。</p>
+      </div>
 
       <div className="settings-section" style={{textAlign:"center",opacity:.6}}>
         <p style={{fontSize:"var(--font-size-sm)",color:"var(--text-tertiary)"}}>小凤美发管理系统 · v0.1.0</p>
