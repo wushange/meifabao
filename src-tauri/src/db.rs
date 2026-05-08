@@ -117,6 +117,7 @@ pub fn init_db(db_path: &Path) -> rusqlite::Result<()> {
         "INSERT OR IGNORE INTO settings (key, value) VALUES
          ('store_name', '美发管理系统'),
          ('font_size', 'normal'),
+         ('voice_enabled', '1'),
          ('backup_dir', ''),
          ('backup_keep_days', '30'),
          ('backup_hour', '2');"

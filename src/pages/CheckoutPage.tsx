@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
-  searchMembers, getServices, checkout,
+  searchMembers, getServices, checkout, getSetting,
   MemberFull, ServiceItem, CheckoutReceipt, LevelInfo, RecordItem, RechargeItem,
 } from "../db";
 
@@ -34,6 +34,12 @@ export default function CheckoutPage({ levels, members, records, recharges, onRe
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState("");
   const [receipt, setReceipt] = useState<CheckoutReceipt | null>(null);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+
+  useEffect(() => {
+    getSetting("voice_enabled").then(v => setVoiceEnabled(v !== "0")).catch(() => {});
+  }, []);
+
   // 最近消费的顾客（暂时移除）
   const discountRate = useMemo(() => {
     if (!selected) return 1;
@@ -110,13 +116,15 @@ export default function CheckoutPage({ levels, members, records, recharges, onRe
       setReceipt(r);
       setToast(`✅ 结账成功！实付 ¥${r.total.toFixed(2)}，余额 ¥${r.new_balance.toFixed(2)}`);
       // 语音播报
-      const method = payment === "余额" ? "余额支付" : "现金支付";
-      const msg = `${method}，消费${r.total.toFixed(0)}元，剩余余额${r.new_balance.toFixed(0)}元`;
-      try {
-        const u = new SpeechSynthesisUtterance(msg);
-        u.lang = "zh-CN"; u.rate = 1.0; u.pitch = 1.0;
-        speechSynthesis.speak(u);
-      } catch {}
+      if (voiceEnabled) {
+        const method = payment === "余额" ? "余额支付" : "现金支付";
+        const msg = `${method}，消费${r.total.toFixed(0)}元，剩余余额${r.new_balance.toFixed(0)}元`;
+        try {
+          const u = new SpeechSynthesisUtterance(msg);
+          u.lang = "zh-CN"; u.rate = 1.0; u.pitch = 1.0;
+          speechSynthesis.speak(u);
+        } catch {}
+      }
       setSelected(null);
       setCart([]);
       setCustomItems([]);

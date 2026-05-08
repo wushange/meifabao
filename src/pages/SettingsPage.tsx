@@ -4,7 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import {
   LevelInfo, updateLevel, exportAllData, clearAllData, batchImportMembers,
   BackupConfig, getBackupConfig, saveBackupConfig, manualBackup,
-  setSetting,
+  setSetting, getSetting,
 } from "../db";
 
 type FontSize = "small" | "normal" | "large";
@@ -24,6 +24,7 @@ export default function SettingsPage({
 }: Props) {
   const [localStoreName, setLocalStoreName] = useState(storeName);
   const [localFontSize, setLocalFontSize] = useState<FontSize>(fontSize);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [toast, setToast] = useState("");
 
   const [backupConfig, setBackupConfig] = useState<BackupConfig>({ backup_dir: "", backup_keep_days: 30, backup_hour: 2 });
@@ -32,6 +33,7 @@ export default function SettingsPage({
 
   useEffect(() => {
     getBackupConfig().then(setBackupConfig).catch(() => {});
+    getSetting("voice_enabled").then(v => setVoiceEnabled(v !== "0")).catch(() => {});
   }, []);
 
   async function handleSaveBackupConfig() {
@@ -200,6 +202,25 @@ export default function SettingsPage({
               {fs === "small" ? "🔹 小" : fs === "normal" ? "🔸 中" : "🔶 大"}
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* 语音播报 */}
+      <div className="settings-section">
+        <h3>语音播报</h3>
+        <p className="section-desc">结账后自动语音播报消费金额与余额</p>
+        <div style={{marginTop:14}}>
+          <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer"}}>
+            <input type="checkbox" checked={voiceEnabled}
+              onChange={async e => {
+                const v = e.target.checked;
+                setVoiceEnabled(v);
+                try { await setSetting("voice_enabled", v ? "1" : "0"); setToast(v ? "✅ 语音播报已开启" : "🔇 语音播报已关闭"); }
+                catch { setVoiceEnabled(!v); }
+              }}
+              style={{width:18,height:18,cursor:"pointer"}} />
+            <span>{voiceEnabled ? "🔊 已开启" : "🔇 已关闭"}</span>
+          </label>
         </div>
       </div>
 
