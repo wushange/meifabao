@@ -24,6 +24,7 @@ export default function CheckoutPage({ levels, members, onReload }: Props) {
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [cart, setCart] = useState<number[]>([]);
   const [customItems, setCustomItems] = useState<CustomItem[]>([]);
+  const [showCustomInput, setShowCustomInput] = useState(false);
   const [customName, setCustomName] = useState("");
   const [customAmount, setCustomAmount] = useState("");
   const [payment, setPayment] = useState("余额");
@@ -83,6 +84,7 @@ export default function CheckoutPage({ levels, members, onReload }: Props) {
     setCustomItems(prev => [...prev, { name: customName.trim(), amount: amt }]);
     setCustomName("");
     setCustomAmount("");
+    setShowCustomInput(false);
   }
 
   function removeCustomItem(index: number) {
@@ -240,6 +242,35 @@ export default function CheckoutPage({ levels, members, onReload }: Props) {
                   </div>
                 </div>
               ))}
+
+              {/* 自定义金额默认服务项 */}
+              <div className="service-group">
+                <div className="service-cat-label">自定义</div>
+                <div className="service-grid">
+                  <button
+                    className={`service-btn custom${showCustomInput ? " active" : ""}`}
+                    onClick={() => { setShowCustomInput(!showCustomInput); setCustomName(""); setCustomAmount(""); }}
+                  >
+                    <span className="service-btn-name">✚ 其他收费</span>
+                    <span className="service-btn-price" style={{color:"var(--info)"}}>手动输入</span>
+                  </button>
+                </div>
+                {showCustomInput && (
+                  <div style={{marginTop:10,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                    <input className="input input-sm" placeholder="项目名称" value={customName}
+                      onChange={e => setCustomName(e.target.value)}
+                      style={{flex:1,minWidth:100}} autoFocus />
+                    <input className="input input-sm" placeholder="金额" type="number" step="0.01" min="0"
+                      value={customAmount}
+                      onChange={e => setCustomAmount(e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && addCustomItem()}
+                      style={{width:90}} />
+                    <button className="btn btn-primary btn-sm" onClick={addCustomItem}
+                      disabled={!customName.trim() || !customAmount}>确认</button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setShowCustomInput(false)}>取消</button>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="cart-panel">
@@ -265,19 +296,6 @@ export default function CheckoutPage({ levels, members, onReload }: Props) {
                         </div>
                       ))}
                     </div>
-
-                    {/* 自定义金额输入 */}
-                    <div className="custom-add" style={{marginTop:8,display:"flex",gap:6,flexWrap:"wrap"}}>
-                      <input className="input input-sm" placeholder="项目名（如：洗发水）" value={customName}
-                        onChange={e => setCustomName(e.target.value)} style={{flex:1,minWidth:90}} />
-                      <input className="input input-sm" placeholder="金额" type="number" step="0.01" min="0"
-                        value={customAmount} onChange={e => setCustomAmount(e.target.value)}
-                        onKeyDown={e => e.key === "Enter" && addCustomItem()}
-                        style={{width:80}} />
-                      <button className="btn btn-sm" onClick={addCustomItem}
-                        disabled={!customName.trim() || !customAmount}>➕ 添加</button>
-                    </div>
-
                     <div className="cart-summary">
                       {discountRate < 1 && (
                         <div className="cart-row"><span>原价合计</span><span>¥{original.toFixed(2)}</span></div>

@@ -683,9 +683,11 @@ body {
   box-shadow: 0 0 0 3px rgba(201,149,42,.12);
 }
 .service-btn-name { font-size: var(--font-size-md); font-weight: 700; text-align: center; }
-.service-btn-price { font-size: var(--font-size); color: var(--text-secondary); }
+.service-btn .service-btn-price { font-size: var(--font-size); color: var(--text-secondary); }
 .service-btn-price del { font-size: 11px; opacity: .5; margin-right: 3px; }
 .service-btn.active .service-btn-price { color: var(--gold-dark); font-weight: 600; }
+.service-btn.custom { border-style: dashed; border-color: var(--info); background: var(--info-bg); }
+.service-btn.custom:hover { border-color: var(--info); background: #dbeafe; }
 
 .cart-panel {
   background: var(--bg);
