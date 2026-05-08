@@ -6,10 +6,11 @@ import {
 
 interface Props {
   levels: LevelInfo[];
+  members: MemberFull[];
   onReload: () => void;
 }
 
-export default function CheckoutPage({ levels, onReload }: Props) {
+export default function CheckoutPage({ levels, members, onReload }: Props) {
   const [keyword, setKeyword] = useState("");
   const [results, setResults] = useState<MemberFull[]>([]);
   const [searched, setSearched] = useState(false);
@@ -22,6 +23,14 @@ export default function CheckoutPage({ levels, onReload }: Props) {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState("");
   const [receipt, setReceipt] = useState<CheckoutReceipt | null>(null);
+
+  // 最近消费的顾客（有消费记录的排在前面）
+  const recentMembers = useMemo(() => {
+    return [...members]
+      .filter(m => m.last_visit)
+      .sort((a, b) => (b.last_visit || "").localeCompare(a.last_visit || ""))
+      .slice(0, 8);
+  }, [members]);
 
   const discountRate = useMemo(() => {
     if (!selected) return 1;
@@ -79,7 +88,6 @@ export default function CheckoutPage({ levels, onReload }: Props) {
     finally { setLoading(false); }
   }
 
-  // 按分类分组服务
   const serviceGroups = useMemo(() => {
     const map: Record<string, ServiceItem[]> = {};
     for (const s of services) {
@@ -117,6 +125,23 @@ export default function CheckoutPage({ levels, onReload }: Props) {
     <div className="checkout-page">
       {toast && <div className="toast" onClick={() => setToast("")}>{toast}</div>}
 
+      {/* 最近顾客快捷入口 */}
+      {!selected && recentMembers.length > 0 && (
+        <div className="recent-section">
+          <div className="section-label">🕐 最近顾客</div>
+          <div className="recent-list">
+            {recentMembers.map(m => (
+              <button key={m.id} className="recent-chip" onClick={() => selectMember(m)}>
+                <span className="recent-chip-name">{m.name}</span>
+                <span className="recent-chip-level">
+                  <span className={`level-tag level-${m.level}`}>{m.level}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 搜索区 */}
       <div className="search-bar">
         <input
@@ -133,7 +158,6 @@ export default function CheckoutPage({ levels, onReload }: Props) {
         </button>
       </div>
 
-      {/* 搜索结果 */}
       {searched && results.length === 0 && (
         <div className="empty-state" style={{padding:"60px 20px"}}>未找到会员，请检查输入</div>
       )}
@@ -153,7 +177,6 @@ export default function CheckoutPage({ levels, onReload }: Props) {
         </div>
       )}
 
-      {/* 结账区 */}
       {selected && (
         <div className="checkout-area">
           <div className="checkout-member-bar">
@@ -169,7 +192,6 @@ export default function CheckoutPage({ levels, onReload }: Props) {
           </div>
 
           <div className="checkout-layout">
-            {/* 左侧：服务列表 */}
             <div className="service-picker">
               {Object.entries(serviceGroups).map(([cat, items]) => (
                 <div key={cat} className="service-group">
@@ -196,9 +218,7 @@ export default function CheckoutPage({ levels, onReload }: Props) {
               ))}
             </div>
 
-            {/* 右侧：购物车 */}
             <div className="cart-panel">
-              {/* 上半：可滚动的清单区 */}
               <div className="cart-scroll">
                 <h3>待结账清单</h3>
                 {cartItems.length === 0 ? (
@@ -227,7 +247,6 @@ export default function CheckoutPage({ levels, onReload }: Props) {
                 )}
               </div>
 
-              {/* 下半：固定在底部的支付区 */}
               <div className="cart-footer">
                 <div className="cart-payment">
                   <label className="radio-label">

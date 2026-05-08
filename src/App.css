@@ -49,6 +49,26 @@
   --transition: all .18s ease;
 }
 
+/* ── 字体大小档 ── */
+.font-small {
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 15px;
+  --font-size-xl: 18px;
+  --font-size-2xl: 21px;
+}
+.font-large {
+  --font-size-xs: 14px;
+  --font-size-sm: 15px;
+  --font-size: 16px;
+  --font-size-md: 18px;
+  --font-size-lg: 20px;
+  --font-size-xl: 24px;
+  --font-size-2xl: 28px;
+}
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
@@ -531,6 +551,44 @@ body {
 /* ═══ Checkout Page ═══ */
 .checkout-page { padding: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
+/* ── 最近顾客 ── */
+.recent-section {
+  margin-bottom: 16px;
+}
+.section-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+.recent-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.recent-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--border-light);
+  border-radius: 999px;
+  background: var(--card);
+  cursor: pointer;
+  transition: var(--transition);
+  font-size: var(--font-size-sm);
+}
+.recent-chip:hover {
+  border-color: var(--gold);
+  background: var(--gold-light);
+}
+.recent-chip-name {
+  font-weight: 600;
+  color: var(--text);
+}
+.recent-chip-level {
+  transform: scale(0.85);
+}
+
 .search-bar {
   display: flex;
   gap: 10px;
@@ -605,13 +663,13 @@ body {
 }
 .service-cat-label::after { content: ''; flex: 1; height: 1px; background: var(--border-light); }
 
-.service-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.service-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
 
 .service-btn {
   display: flex; flex-direction: column; align-items: center;
-  padding: 12px 8px;
+  padding: 16px 10px;
   border: 1.5px solid var(--border-light);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   background: var(--card);
   cursor: pointer;
   transition: var(--transition);
@@ -624,8 +682,8 @@ body {
   background: var(--gold-lighter);
   box-shadow: 0 0 0 3px rgba(201,149,42,.12);
 }
-.service-btn-name { font-size: var(--font-size); font-weight: 600; text-align: center; }
-.service-btn-price { font-size: var(--font-size-sm); color: var(--text-secondary); }
+.service-btn-name { font-size: var(--font-size-md); font-weight: 700; text-align: center; }
+.service-btn-price { font-size: var(--font-size); color: var(--text-secondary); }
 .service-btn-price del { font-size: 11px; opacity: .5; margin-right: 3px; }
 .service-btn.active .service-btn-price { color: var(--gold-dark); font-weight: 600; }
 

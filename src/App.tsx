@@ -19,19 +19,24 @@ const tabs: { id: Tab; icon: string; label: string }[] = [
   { id: "settings", icon: "⚙️", label: "设置" },
 ];
 
+type FontSize = "small" | "normal" | "large";
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("checkout");
   const [storeName, setStoreName] = useState("美发管理系统");
+  const [fontSize, setFontSize] = useState<FontSize>("normal");
   const data = useAppData();
 
-  // 加载店铺名称
   useEffect(() => {
-    getSetting("store_name").then(name => {
+    Promise.all([
+      getSetting("store_name"),
+      getSetting("font_size"),
+    ]).then(([name, fs]) => {
       if (name) setStoreName(name);
+      if (fs === "small" || fs === "large") setFontSize(fs);
     }).catch(() => {});
   }, []);
 
-  // 启动时执行每日自动备份
   useEffect(() => {
     if (!data.loading && data.members.length >= 0) {
       dailyBackup().catch(() => {});
@@ -40,7 +45,7 @@ export default function App() {
 
   if (data.loading) {
     return (
-      <div className="app-loading">
+      <div className={`app-loading font-${fontSize}`}>
         <div className="loading-logo">💈</div>
         <h1>{storeName}</h1>
         <p>加载中...</p>
@@ -50,7 +55,7 @@ export default function App() {
 
   if (data.error) {
     return (
-      <div className="app-loading">
+      <div className={`app-loading font-${fontSize}`}>
         <h2>⚠️ 加载失败</h2>
         <p>{data.error}</p>
         <button className="btn btn-primary" onClick={data.reload}>重试</button>
@@ -59,8 +64,7 @@ export default function App() {
   }
 
   return (
-    <div className="app">
-      {/* 侧边栏 */}
+    <div className={`app font-${fontSize}`}>
       <aside className="sidebar">
         <div className="sidebar-brand">
           <div className="sidebar-logo">💈</div>
@@ -86,10 +90,9 @@ export default function App() {
         </div>
       </aside>
 
-      {/* 主内容 */}
       <main className="main-content">
         {activeTab === "checkout" && (
-          <CheckoutPage levels={data.levels} onReload={data.reload} />
+          <CheckoutPage levels={data.levels} members={data.members} onReload={data.reload} />
         )}
         {activeTab === "members" && (
           <MemberPage members={data.members} onReload={data.reload} />
@@ -116,7 +119,9 @@ export default function App() {
           <SettingsPage
             levels={data.levels}
             storeName={storeName}
+            fontSize={fontSize}
             onStoreNameChange={setStoreName}
+            onFontSizeChange={setFontSize}
             onReload={data.reload}
           />
         )}
