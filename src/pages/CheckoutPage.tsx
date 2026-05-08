@@ -109,6 +109,14 @@ export default function CheckoutPage({ levels, members, records, recharges, onRe
       );
       setReceipt(r);
       setToast(`✅ 结账成功！实付 ¥${r.total.toFixed(2)}，余额 ¥${r.new_balance.toFixed(2)}`);
+      // 语音播报
+      const method = payment === "余额" ? "余额支付" : "现金支付";
+      const msg = `${method}，消费${r.total.toFixed(0)}元，剩余余额${r.new_balance.toFixed(0)}元`;
+      try {
+        const u = new SpeechSynthesisUtterance(msg);
+        u.lang = "zh-CN"; u.rate = 1.0; u.pitch = 1.0;
+        speechSynthesis.speak(u);
+      } catch {}
       setSelected(null);
       setCart([]);
       setCustomItems([]);
