@@ -32,16 +32,8 @@ export default function CheckoutPage({ levels, members, onReload }: Props) {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState("");
   const [receipt, setReceipt] = useState<CheckoutReceipt | null>(null);
-
-  const recentMembers = useMemo(() => {
-    return [...members]
-      .filter(m => m.last_visit)
-      .sort((a, b) => (b.last_visit || "").localeCompare(a.last_visit || ""))
-      .slice(0, 8);
-  }, [members]);
-
+  // 最近消费的顾客（暂时移除）
   const discountRate = useMemo(() => {
-    if (!selected) return 1;
     const lv = levels.find(l => l.name === selected.level);
     return lv?.discount ?? 1;
   }, [selected, levels]);
@@ -152,23 +144,7 @@ export default function CheckoutPage({ levels, members, onReload }: Props) {
   return (
     <div className="checkout-page">
       {toast && <div className="toast" onClick={() => setToast("")}>{toast}</div>}
-
-      {!selected && recentMembers.length > 0 && (
-        <div className="recent-section">
-          <div className="section-label">🕐 最近顾客</div>
-          <div className="recent-list">
-            {recentMembers.map(m => (
-              <button key={m.id} className="recent-chip" onClick={() => selectMember(m)}>
-                <span className="recent-chip-name">{m.name}</span>
-                <span className="recent-chip-level">
-                  <span className={`level-tag level-${m.level}`}>{m.level}</span>
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
+      {/* 搜索区 */}
       <div className="search-bar">
         <input
           className="input input-lg"
