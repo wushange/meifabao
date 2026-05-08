@@ -115,7 +115,7 @@ pub fn init_db(db_path: &Path) -> rusqlite::Result<()> {
     // 插入默认备份配置
     conn.execute_batch(
         "INSERT OR IGNORE INTO settings (key, value) VALUES
-         ('store_name', '美发管理系统'),
+         ('store_name', '美发宝'),
          ('font_size', 'normal'),
          ('voice_enabled', '1'),
          ('backup_dir', ''),

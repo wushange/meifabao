@@ -838,7 +838,7 @@ fn is_leap(y: i32) -> bool { (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0) }
 
 // ── 授权验证 ──
 
-const LICENSE_SECRET: &str = "xfhair-2026!";
+const LICENSE_SECRET: &str = "meifabao-2026!";
 
 fn hash12(input: &str) -> String {
     use sha2::{Sha256, Digest};

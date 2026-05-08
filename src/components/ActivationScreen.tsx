@@ -42,7 +42,7 @@ export default function ActivationScreen({ onActivated }: Props) {
     <div className="activation-overlay">
       <div className="activation-card">
         <div className="activation-logo">💈</div>
-        <h2>美发会员管理系统</h2>
+        <h2>美发宝</h2>
         <p className="activation-desc">请输入激活码以继续使用</p>
 
         <div className="activation-field">

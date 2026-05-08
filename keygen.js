@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * 美发管理系统 - 激活码生成工具
+ * 美发宝 - 激活码生成工具
  * 用法: node keygen.js <机器码>
  * 示例: node keygen.js A1B2C3D4E5F6
  */
 
 const crypto = require("crypto");
 
-const LICENSE_SECRET = "xfhair-2026!";
+const LICENSE_SECRET = "meifabao-2026!";
 
 function hash12(input) {
   return crypto.createHash("sha256").update(input).digest("hex")

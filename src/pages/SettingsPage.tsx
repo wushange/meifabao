@@ -81,7 +81,7 @@ export default function SettingsPage({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "xiaofeng_export.json";
+      a.download = "meifabao_export.json";
       a.click();
       URL.revokeObjectURL(url);
       setToast("✅ 数据导出完成");
@@ -188,7 +188,7 @@ export default function SettingsPage({
             onChange={e => setLocalStoreName(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleSaveStoreName()}
             style={{maxWidth:300}}
-            placeholder="例如：小凤美发"
+            placeholder="例如：美发宝"
           />
           <button className="btn btn-primary btn-sm" onClick={handleSaveStoreName}
             disabled={!localStoreName.trim() || localStoreName === storeName}>
@@ -399,7 +399,7 @@ export default function SettingsPage({
       </div>
 
       <div className="settings-section" style={{textAlign:"center",opacity:.6}}>
-        <p style={{fontSize:"var(--font-size-sm)",color:"var(--text-tertiary)"}}>美发会员管理系统 · v0.1.0</p>
+        <p style={{fontSize:"var(--font-size-sm)",color:"var(--text-tertiary)"}}>美发宝 · v0.1.0</p>
       </div>
     </div>
   );

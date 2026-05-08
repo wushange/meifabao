@@ -43,7 +43,7 @@ pub fn run() {
         .setup(|app| {
             let data_dir = app.path().app_data_dir().expect("failed to get app data dir");
             std::fs::create_dir_all(&data_dir).expect("failed to create data dir");
-            let db_path = data_dir.join("xiaofeng.db");
+            let db_path = data_dir.join("meifabao.db");
             db::init_db(&db_path).expect("failed to init database");
             app.manage(db_path);
             Ok(())

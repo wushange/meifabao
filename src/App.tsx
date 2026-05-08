@@ -24,7 +24,7 @@ type FontSize = "small" | "normal" | "large";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("checkout");
-  const [storeName, setStoreName] = useState("美发管理系统");
+  const [storeName, setStoreName] = useState("美发宝");
   const [fontSize, setFontSize] = useState<FontSize>("normal");
   const [activated, setActivated] = useState(false);
   const [checkingActivation, setCheckingActivation] = useState(true);

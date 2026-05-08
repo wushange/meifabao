@@ -1,8 +1,8 @@
 {
   "$schema": "https://tauri.app/schema/tauri.app.v2.json",
-  "productName": "美发管理系统",
+  "productName": "美发宝",
   "version": "0.1.0",
-  "identifier": "com.zhanglutech.hair-system",
+  "identifier": "com.zhanglutech.meifabao",
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "美发管理系统",
+        "title": "美发宝",
         "width": 1280,
         "height": 860,
         "minWidth": 960,

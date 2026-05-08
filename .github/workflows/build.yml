@@ -53,5 +53,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: 美发管理系统-${{ matrix.target }}
+          name: 美发宝-${{ matrix.target }}
           path: ${{ matrix.path }}
