@@ -105,16 +105,16 @@ export default function SettingsPage({
       const headers = rows[0].map((h: any) => String(h || ""));
       setDetectedCols(headers);
       setImportData(rows.slice(1));
-      // 智能映射
+      // 智能映射（支持常见表头变体）
       const map: any = { name: "", phone: "", level: "", balance: "", note: "", totalSpent: "" };
       for (let i = 0; i < headers.length; i++) {
-        const h = headers[i].toLowerCase();
-        if (!map.name && (h.includes("姓名") || h.includes("名字") || h === "name")) map.name = i;
-        if (!map.phone && (h.includes("电话") || h.includes("手机") || h === "phone")) map.phone = i;
-        if (!map.level && (h.includes("等级") || h === "level")) map.level = i;
-        if (!map.balance && (h.includes("余额") || h === "balance")) map.balance = i;
-        if (!map.note && (h.includes("备注") || h === "note")) map.note = i;
-        if (!map.totalSpent && (h.includes("累计") || h.includes("消费") || h === "total")) map.totalSpent = i;
+        const h = headers[i].trim().toLowerCase().replace(/[：:]/g, "");
+        if (!map.name && (h.includes("姓名") || h.includes("名字") || h === "name" || h.includes("会员名"))) map.name = i;
+        if (!map.phone && (h.includes("电话") || h.includes("手机") || h === "phone" || h.includes("号码"))) map.phone = i;
+        if (!map.level && (h.includes("等级") || h === "level" || h.includes("级别"))) map.level = i;
+        if (!map.balance && (h.includes("余额") || h === "balance" || h.includes("储值"))) map.balance = i;
+        if (!map.note && (h.includes("备注") || h === "note" || h.includes("说明"))) map.note = i;
+        if (!map.totalSpent && (h.includes("累计") || h.includes("消费") || h === "total" || h.includes("总额"))) map.totalSpent = i;
       }
       setImportMapping(map);
       setImportStep("mapping");
@@ -123,19 +123,24 @@ export default function SettingsPage({
   }
 
   function applyMapping() {
+    let skipped = 0;
     const preview = importData.map((r: any) => {
+      const name = String(r[importMapping.name]||"").trim();
+      const phone = String(r[importMapping.phone]||"").trim();
+      if (!name || !phone) { skipped++; return null; }
       const bal = parseFloat(r[importMapping.balance]) || 0;
       const stored = parseFloat(r[importMapping.totalSpent]) || 0;
       const totalSpent = stored > 0 ? Math.max(0, stored - bal) : 0;
       return {
-        name: String(r[importMapping.name]||"").trim(),
-        phone: String(r[importMapping.phone]||"").trim(),
+        name,
+        phone,
         level: String(r[importMapping.level]||"").trim() || "普通",
         balance: bal,
         total_spent: totalSpent,
         note: String(r[importMapping.note]||"").trim(),
       };
-    }).filter((m: any) => m.name && m.phone);
+    }).filter((m: any) => m !== null);
+    if (skipped > 0) setToast(`⚠️ 已跳过 ${skipped} 行（姓名或手机号为空）`);
     setImportPreview(preview); setImportStep("preview");
   }
 
