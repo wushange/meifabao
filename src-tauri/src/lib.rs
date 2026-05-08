@@ -37,6 +37,8 @@ pub fn run() {
             save_backup_config,
             get_setting,
             set_setting,
+            get_machine_id,
+            verify_license,
         ])
         .setup(|app| {
             let data_dir = app.path().app_data_dir().expect("failed to get app data dir");

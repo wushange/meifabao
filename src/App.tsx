@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAppData } from "./hooks/useAppData";
 import { dailyBackup, getSetting } from "./db";
+import ActivationScreen from "./components/ActivationScreen";
 import CheckoutPage from "./pages/CheckoutPage";
 import MemberPage from "./pages/MemberPage";
 import RecordPage from "./pages/RecordPage";
@@ -25,16 +26,21 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("checkout");
   const [storeName, setStoreName] = useState("美发管理系统");
   const [fontSize, setFontSize] = useState<FontSize>("normal");
+  const [activated, setActivated] = useState(false);
+  const [checkingActivation, setCheckingActivation] = useState(true);
   const data = useAppData();
 
   useEffect(() => {
     Promise.all([
       getSetting("store_name"),
       getSetting("font_size"),
-    ]).then(([name, fs]) => {
+      getSetting("license_key"),
+    ]).then(([name, fs, lk]) => {
       if (name) setStoreName(name);
       if (fs === "small" || fs === "large") setFontSize(fs);
-    }).catch(() => {});
+      setActivated(!!lk);
+      setCheckingActivation(false);
+    }).catch(() => setCheckingActivation(false));
   }, []);
 
   useEffect(() => {
@@ -42,6 +48,19 @@ export default function App() {
       dailyBackup().catch(() => {});
     }
   }, [data.loading]);
+
+  if (checkingActivation) {
+    return (
+      <div className="app-loading font-normal">
+        <div className="loading-logo">💈</div>
+        <p>加载中...</p>
+      </div>
+    );
+  }
+
+  if (!activated) {
+    return <ActivationScreen onActivated={() => setActivated(true)} />;
+  }
 
   if (data.loading) {
     return (

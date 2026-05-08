@@ -836,3 +836,25 @@ fn epoch_to_local() -> (i32, u32, u32, u32, u32, u32) {
 
 fn is_leap(y: i32) -> bool { (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0) }
 
+// ── 授权验证 ──
+
+const LICENSE_SECRET: &str = "xfhair-2026!";
+
+fn hash12(input: &str) -> String {
+    use sha2::{Sha256, Digest};
+    let h = Sha256::digest(input.as_bytes());
+    format!("{:x}", h)[..12].to_string().to_uppercase()
+}
+
+#[tauri::command]
+pub fn get_machine_id() -> String {
+    let host = hostname::get().unwrap_or_default();
+    hash12(&host.to_string_lossy())
+}
+
+#[tauri::command]
+pub fn verify_license(machine_id: String, license_key: String) -> bool {
+    let expected = hash12(&format!("{}{}", machine_id, LICENSE_SECRET));
+    expected == license_key.to_uppercase()
+}
+

@@ -80,6 +80,58 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* ═══ 激活页面 ═══ */
+.activation-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: linear-gradient(135deg, #1e1810, #2a1f15);
+}
+.activation-card {
+  background: var(--card);
+  border-radius: var(--radius-xl);
+  padding: 40px 36px;
+  width: 420px;
+  max-width: 90vw;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+}
+.activation-logo { font-size: 48px; margin-bottom: 8px; }
+.activation-card h2 { color: var(--text); font-size: var(--font-size-xl); margin-bottom: 4px; }
+.activation-desc { color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: 24px; }
+.activation-field { text-align: left; margin-bottom: 16px; }
+.activation-field label { display: block; font-size: var(--font-size-sm); color: var(--text-secondary); margin-bottom: 6px; }
+.activation-machine-id {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--bg);
+  border-radius: var(--radius);
+  border: 1px solid var(--border-light);
+}
+.activation-machine-id code {
+  flex: 1;
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--gold-dark);
+  letter-spacing: 2px;
+}
+.activation-error {
+  color: var(--danger);
+  font-size: var(--font-size-sm);
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: var(--danger-bg);
+  border-radius: var(--radius-sm);
+}
+.activation-hint {
+  margin-top: 16px;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+
 /* ═══ App Layout ═══ */
 .app { display: flex; height: 100vh; overflow: hidden; }
 
