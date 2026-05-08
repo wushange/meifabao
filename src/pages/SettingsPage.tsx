@@ -3,14 +3,18 @@ import * as XLSX from "xlsx";
 import {
   LevelInfo, updateLevel, exportAllData, clearAllData, batchImportMembers,
   BackupConfig, getBackupConfig, saveBackupConfig, manualBackup,
+  setSetting,
 } from "../db";
 
 interface Props {
   levels: LevelInfo[];
+  storeName: string;
+  onStoreNameChange: (name: string) => void;
   onReload: () => void;
 }
 
-export default function SettingsPage({ levels, onReload }: Props) {
+export default function SettingsPage({ levels, storeName, onStoreNameChange, onReload }: Props) {
+  const [localStoreName, setLocalStoreName] = useState(storeName);
   const [toast, setToast] = useState("");
 
   // 备份配置
@@ -161,6 +165,32 @@ export default function SettingsPage({ levels, onReload }: Props) {
       {toast && <div className="toast" onClick={() => setToast("")}>{toast}</div>}
       <div className="page-header">
         <h2>⚙️ 系统设置</h2>
+      </div>
+
+      {/* 店铺名称 */}
+      <div className="settings-section">
+        <h3>店铺名称</h3>
+        <p className="section-desc">修改后侧边栏和标题栏的显示名称</p>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginTop:14}}>
+          <input
+            className="input"
+            type="text"
+            value={localStoreName}
+            onChange={e => setLocalStoreName(e.target.value)}
+            onBlur={async () => {
+              if (localStoreName !== storeName && localStoreName.trim()) {
+                try {
+                  await setSetting("store_name", localStoreName.trim());
+                  onStoreNameChange(localStoreName.trim());
+                  setToast("✅ 店铺名称已保存");
+                } catch (e) { setToast("保存失败: "+e); }
+              }
+            }}
+            style={{maxWidth:300}}
+            placeholder="例如：小凤美发"
+          />
+          <span style={{color:"var(--text-secondary)",fontSize:"var(--font-size-sm)"}}>失焦自动保存</span>
+        </div>
       </div>
 
       <div className="settings-section">
@@ -314,7 +344,7 @@ export default function SettingsPage({ levels, onReload }: Props) {
       </div>
 
       <div className="settings-section" style={{textAlign:"center",opacity:.6}}>
-        <p style={{fontSize:"var(--font-size-sm)",color:"var(--text-tertiary)"}}>小凤美发管理系统 · v0.1.0</p>
+        <p style={{fontSize:"var(--font-size-sm)",color:"var(--text-tertiary)"}}>美发会员管理系统 · v0.1.0</p>
       </div>
     </div>
   );

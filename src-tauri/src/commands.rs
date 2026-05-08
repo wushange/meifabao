@@ -574,6 +574,23 @@ pub fn save_backup_config(db_path: tauri::State<PathBuf>, config: BackupConfig) 
     Ok(())
 }
 
+// ── 通用设置读写 ──
+
+#[tauri::command]
+pub fn get_setting(db_path: tauri::State<PathBuf>, key: String) -> Result<String, String> {
+    let c = conn(db_path.inner())?;
+    c.query_row("SELECT value FROM settings WHERE key=?1", rusqlite::params![key], |r| r.get(0))
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn set_setting(db_path: tauri::State<PathBuf>, key: String, value: String) -> Result<(), String> {
+    let c = conn(db_path.inner())?;
+    c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+        rusqlite::params![key, value]).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 // ── 每日自动备份 ──
 
 #[derive(Serialize)]

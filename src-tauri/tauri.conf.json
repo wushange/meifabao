@@ -1,8 +1,8 @@
 {
   "$schema": "https://tauri.app/schema/tauri.app.v2.json",
-  "productName": "小凤美发",
+  "productName": "美发管理系统",
   "version": "0.1.0",
-  "identifier": "com.zhanglutech.xiaofeng-hair",
+  "identifier": "com.zhanglutech.hair-system",
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "小凤美发 - 会员管理",
+        "title": "美发管理系统",
         "width": 1280,
         "height": 860,
         "minWidth": 960,

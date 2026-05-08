@@ -57,7 +57,17 @@ export interface CheckoutReceipt {
   new_balance: number;
 }
 
-// ═══ API ═══
+// ═══ 设置 API ═══
+
+export async function getSetting(key: string): Promise<string> {
+  return await invoke<string>("get_setting", { key });
+}
+
+export async function setSetting(key: string, value: string): Promise<void> {
+  await invoke("set_setting", { key, value });
+}
+
+// ═══ 成员 API ═══
 
 export async function getMembers(): Promise<MemberFull[]> {
   return await invoke<MemberFull[]>("get_members");

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAppData } from "./hooks/useAppData";
-import { dailyBackup } from "./db";
+import { dailyBackup, getSetting } from "./db";
 import CheckoutPage from "./pages/CheckoutPage";
 import MemberPage from "./pages/MemberPage";
 import RecordPage from "./pages/RecordPage";
@@ -21,7 +21,15 @@ const tabs: { id: Tab; icon: string; label: string }[] = [
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("checkout");
+  const [storeName, setStoreName] = useState("美发管理系统");
   const data = useAppData();
+
+  // 加载店铺名称
+  useEffect(() => {
+    getSetting("store_name").then(name => {
+      if (name) setStoreName(name);
+    }).catch(() => {});
+  }, []);
 
   // 启动时执行每日自动备份
   useEffect(() => {
@@ -34,7 +42,7 @@ export default function App() {
     return (
       <div className="app-loading">
         <div className="loading-logo">💈</div>
-        <h1>小凤美发</h1>
+        <h1>{storeName}</h1>
         <p>加载中...</p>
       </div>
     );
@@ -57,7 +65,7 @@ export default function App() {
         <div className="sidebar-brand">
           <div className="sidebar-logo">💈</div>
           <div>
-            <div className="sidebar-title">小凤美发</div>
+            <div className="sidebar-title">{storeName}</div>
             <div className="sidebar-subtitle">会员管理系统</div>
           </div>
         </div>
@@ -105,7 +113,12 @@ export default function App() {
           />
         )}
         {activeTab === "settings" && (
-          <SettingsPage levels={data.levels} onReload={data.reload} />
+          <SettingsPage
+            levels={data.levels}
+            storeName={storeName}
+            onStoreNameChange={setStoreName}
+            onReload={data.reload}
+          />
         )}
       </main>
     </div>

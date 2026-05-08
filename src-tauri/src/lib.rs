@@ -34,6 +34,8 @@ pub fn run() {
             manual_backup,
             get_backup_config,
             save_backup_config,
+            get_setting,
+            set_setting,
         ])
         .setup(|app| {
             let data_dir = app.path().app_data_dir().expect("failed to get app data dir");
