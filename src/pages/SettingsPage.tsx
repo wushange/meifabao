@@ -155,6 +155,15 @@ export default function SettingsPage({
     } catch (e) { setToast("保存失败: "+e); }
   }
 
+  async function handleSaveStoreName() {
+    if (!localStoreName.trim() || localStoreName === storeName) return;
+    try {
+      await setSetting("store_name", localStoreName.trim());
+      onStoreNameChange(localStoreName.trim());
+      setToast("✅ 店铺名称已保存");
+    } catch (e) { setToast("保存失败: "+e); }
+  }
+
   return (
     <div className="page">
       {toast && <div className="toast" onClick={() => setToast("")}>{toast}</div>}
@@ -172,19 +181,14 @@ export default function SettingsPage({
             type="text"
             value={localStoreName}
             onChange={e => setLocalStoreName(e.target.value)}
-            onBlur={async () => {
-              if (localStoreName !== storeName && localStoreName.trim()) {
-                try {
-                  await setSetting("store_name", localStoreName.trim());
-                  onStoreNameChange(localStoreName.trim());
-                  setToast("✅ 店铺名称已保存");
-                } catch (e) { setToast("保存失败: "+e); }
-              }
-            }}
+            onKeyDown={e => e.key === "Enter" && handleSaveStoreName()}
             style={{maxWidth:300}}
             placeholder="例如：小凤美发"
           />
-          <span style={{color:"var(--text-secondary)",fontSize:"var(--font-size-sm)"}}>失焦自动保存</span>
+          <button className="btn btn-primary btn-sm" onClick={handleSaveStoreName}
+            disabled={!localStoreName.trim() || localStoreName === storeName}>
+            💾 保存
+          </button>
         </div>
       </div>
 
