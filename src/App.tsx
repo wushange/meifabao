@@ -92,7 +92,7 @@ export default function App() {
 
       <main className="main-content">
         {activeTab === "checkout" && (
-          <CheckoutPage levels={data.levels} members={data.members} onReload={data.reload} />
+          <CheckoutPage levels={data.levels} members={data.members} records={data.records} recharges={data.recharges} onReload={data.reload} />
         )}
         {activeTab === "members" && (
           <MemberPage members={data.members} onReload={data.reload} />

@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import {
   searchMembers, getServices, checkout,
-  MemberFull, ServiceItem, CheckoutReceipt, LevelInfo,
+  MemberFull, ServiceItem, CheckoutReceipt, LevelInfo, RecordItem, RechargeItem,
 } from "../db";
 
 interface CustomItem {
@@ -12,10 +12,12 @@ interface CustomItem {
 interface Props {
   levels: LevelInfo[];
   members: MemberFull[];
+  records: RecordItem[];
+  recharges: RechargeItem[];
   onReload: () => void;
 }
 
-export default function CheckoutPage({ levels, members, onReload }: Props) {
+export default function CheckoutPage({ levels, members, records, recharges, onReload }: Props) {
   const [keyword, setKeyword] = useState("");
   const [results, setResults] = useState<MemberFull[]>([]);
   const [searched, setSearched] = useState(false);
@@ -34,9 +36,19 @@ export default function CheckoutPage({ levels, members, onReload }: Props) {
   const [receipt, setReceipt] = useState<CheckoutReceipt | null>(null);
   // 最近消费的顾客（暂时移除）
   const discountRate = useMemo(() => {
+    if (!selected) return 1;
     const lv = levels.find(l => l.name === selected.level);
     return lv?.discount ?? 1;
   }, [selected, levels]);
+
+  const todaySummary = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const todayRecords = records.filter(r => (r.created_at || "").startsWith(today));
+    const todayRecharges = recharges.filter(r => (r.created_at || "").startsWith(today));
+    const revenue = todayRecords.reduce((s, r) => s + r.amount, 0);
+    const customerIds = new Set(todayRecords.map(r => r.member_id));
+    return { revenue, customers: customerIds.size, rechargeTotal: todayRecharges.reduce((s, r) => s + r.amount, 0) };
+  }, [records, recharges]);
 
   const cartItems = useMemo(() =>
     cart.map(sid => services.find(s => s.id === sid)!).filter(Boolean)
@@ -176,6 +188,30 @@ export default function CheckoutPage({ levels, members, onReload }: Props) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* 今日概览 — 未搜索且未选择会员时显示 */}
+      {!selected && !searched && (
+        <div className="today-dashboard">
+          <div className="dash-title">📊 今日概览</div>
+          <div className="dash-cards">
+            <div className="dash-card">
+              <div className="dash-card-icon">💰</div>
+              <div className="dash-card-value">¥{todaySummary.revenue.toFixed(2)}</div>
+              <div className="dash-card-label">今日收入</div>
+            </div>
+            <div className="dash-card">
+              <div className="dash-card-icon">👤</div>
+              <div className="dash-card-value">{todaySummary.customers}</div>
+              <div className="dash-card-label">今日客数</div>
+            </div>
+            <div className="dash-card">
+              <div className="dash-card-icon">📥</div>
+              <div className="dash-card-value">¥{todaySummary.rechargeTotal.toFixed(2)}</div>
+              <div className="dash-card-label">今日充值</div>
+            </div>
+          </div>
         </div>
       )}
 
