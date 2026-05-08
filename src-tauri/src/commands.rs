@@ -138,12 +138,21 @@ pub fn search_members(db_path: tauri::State<PathBuf>, keyword: String) -> Result
 #[tauri::command]
 pub fn add_member(db_path: tauri::State<PathBuf>, member: Member) -> Result<i32, String> {
     let c = conn(db_path.inner())?;
+    let balance = member.balance.unwrap_or(0.0);
     c.execute(
         "INSERT INTO members (name, phone, level, balance, note) VALUES (?1,?2,?3,?4,?5)",
-        rusqlite::params![member.name, member.phone, member.level.unwrap_or("普通".into()), member.balance.unwrap_or(0.0),
+        rusqlite::params![member.name, member.phone, member.level.unwrap_or("普通".into()), balance,
             member.note.unwrap_or("".into())],
     ).map_err(|e| e.to_string())?;
-    Ok(c.last_insert_rowid() as i32)
+    let id = c.last_insert_rowid() as i32;
+    // 初始余额写入充值记录
+    if balance > 0.0 {
+        c.execute(
+            "INSERT INTO recharges (member_id, amount, note) VALUES (?1,?2,'新会员开卡充值')",
+            rusqlite::params![id, balance],
+        ).map_err(|e| e.to_string())?;
+    }
+    Ok(id)
 }
 
 #[tauri::command]
