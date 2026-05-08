@@ -133,9 +133,10 @@ export async function checkout(
   serviceIds: number[],
   paymentMethod: string,
   note: string,
+  customItems?: { name: string; amount: number }[],
 ): Promise<CheckoutReceipt> {
   return await invoke<CheckoutReceipt>("checkout", {
-    memberId, serviceIds, paymentMethod, note,
+    memberId, serviceIds, paymentMethod, note, customItems: customItems ?? null,
   });
 }
 

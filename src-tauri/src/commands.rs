@@ -295,54 +295,76 @@ pub fn delete_record(db_path: tauri::State<PathBuf>, id: i32) -> Result<(), Stri
     Ok(())
 }
 
-// ── 收银结账命令（支持多服务 + 折扣 + 余额扣减）──
+// ── 收银结账命令（支持多服务 + 折扣 + 余额扣减 + 自定义金额）──
+
+#[derive(Deserialize)]
+pub struct CustomItem {
+    pub name: String,
+    pub amount: f64,
+}
 
 #[tauri::command]
 pub fn checkout(
     db_path: tauri::State<PathBuf>,
     member_id: i32,
     service_ids: Vec<i32>,
+    custom_items: Option<Vec<CustomItem>>,
     payment_method: String,
     note: String,
 ) -> Result<CheckoutReceipt, String> {
     let c = conn(db_path.inner())?;
 
-    // 获取会员信息
-    let (member_name, level, old_balance): (String, String, f64) = c.query_row(
-        "SELECT name, level, balance FROM members WHERE id=?1",
-        rusqlite::params![member_id],
-        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-    ).map_err(|e| e.to_string())?;
+    let (member_name, level, old_balance): (String, String, f64) = c
+        .query_row(
+            "SELECT name, level, balance FROM members WHERE id=?1",
+            rusqlite::params![member_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .map_err(|e| e.to_string())?;
 
-    // 获取折扣率
-    let discount_rate: f64 = c.query_row(
-        "SELECT discount FROM levels WHERE name=?1",
-        rusqlite::params![&level],
-        |row| row.get(0),
-    ).unwrap_or(1.0);
+    let discount_rate: f64 = c
+        .query_row(
+            "SELECT discount FROM levels WHERE name=?1",
+            rusqlite::params![&level],
+            |row| row.get(0),
+        )
+        .unwrap_or(1.0);
 
-    // 计算总价
     let mut service_names: Vec<String> = Vec::new();
     let mut original = 0.0;
     let mut total = 0.0;
 
     for sid in &service_ids {
-        let (sname, sprice): (String, f64) = c.query_row(
-            "SELECT name, price FROM services WHERE id=?1",
-            rusqlite::params![sid],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        ).map_err(|e| format!("服务ID {} 不存在: {}", sid, e))?;
+        let (sname, sprice): (String, f64) = c
+            .query_row(
+                "SELECT name, price FROM services WHERE id=?1",
+                rusqlite::params![sid],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(|e| format!("服务ID {} 不存在: {}", sid, e))?;
 
         service_names.push(sname.clone());
         original += sprice;
         let discounted = (sprice * discount_rate * 100.0).round() / 100.0;
         total += discounted;
 
-        // 写入消费记录
         c.execute(
             "INSERT INTO records (member_id, service_id, member_name, service_name, amount, payment_method, note)
              VALUES (?1,?2,?3,?4,?5,?6,?7)",
             rusqlite::params![member_id, sid, member_name, sname, discounted, payment_method, note],
+        ).map_err(|e| e.to_string())?;
+    }
+
+    // 自定义金额（不打折）
+    for ci in custom_items.iter().flatten() {
+        service_names.push(format!("{} (自定义)", ci.name));
+        original += ci.amount;
+        total += ci.amount;
+
+        c.execute(
+            "INSERT INTO records (member_id, service_id, member_name, service_name, amount, payment_method, note)
+             VALUES (?1,0,?2,?3,?4,?5,?6)",
+            rusqlite::params![member_id, member_name, format!("自定义-{}", ci.name), ci.amount, payment_method, note],
         ).map_err(|e| e.to_string())?;
     }
 

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import * as XLSX from "xlsx";
+import { open } from "@tauri-apps/plugin-dialog";
 import {
   LevelInfo, updateLevel, exportAllData, clearAllData, batchImportMembers,
   BackupConfig, getBackupConfig, saveBackupConfig, manualBackup,
@@ -328,9 +329,18 @@ export default function SettingsPage({
         <p className="section-desc">每日自动备份会员数据为 Excel，防数据丢失</p>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"14px 28px",marginTop:14,maxWidth:520}}>
           <div>
-            <label className="input-label">备份目录（留空使用默认）</label>
-            <input className="input" value={backupConfig.backup_dir} placeholder="如 C:\Backup"
-              onChange={e => setBackupConfig({...backupConfig, backup_dir: e.target.value})} />
+            <label className="input-label">备份目录</label>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <input className="input" value={backupConfig.backup_dir || "默认目录"} readOnly
+                style={{flex:1,background:"var(--bg)",cursor:"default"}} />
+              <button className="btn btn-outline btn-sm" onClick={async () => {
+                try {
+                  const dir = await open({ directory: true, multiple: false, title: "选择备份目录" });
+                  if (dir) setBackupConfig({...backupConfig, backup_dir: dir});
+                } catch {}
+              }}>📁 选择</button>
+            </div>
+            <span className="hint" style={{display:"block",marginTop:4}}>留空使用系统默认备份目录</span>
           </div>
           <div>
             <label className="input-label">保留天数</label>

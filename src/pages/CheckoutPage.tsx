@@ -4,6 +4,11 @@ import {
   MemberFull, ServiceItem, CheckoutReceipt, LevelInfo,
 } from "../db";
 
+interface CustomItem {
+  name: string;
+  amount: number;
+}
+
 interface Props {
   levels: LevelInfo[];
   members: MemberFull[];
@@ -18,13 +23,15 @@ export default function CheckoutPage({ levels, members, onReload }: Props) {
   const [selected, setSelected] = useState<MemberFull | null>(null);
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [cart, setCart] = useState<number[]>([]);
+  const [customItems, setCustomItems] = useState<CustomItem[]>([]);
+  const [customName, setCustomName] = useState("");
+  const [customAmount, setCustomAmount] = useState("");
   const [payment, setPayment] = useState("余额");
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState("");
   const [receipt, setReceipt] = useState<CheckoutReceipt | null>(null);
 
-  // 最近消费的顾客（有消费记录的排在前面）
   const recentMembers = useMemo(() => {
     return [...members]
       .filter(m => m.last_visit)
@@ -42,8 +49,10 @@ export default function CheckoutPage({ levels, members, onReload }: Props) {
     cart.map(sid => services.find(s => s.id === sid)!).filter(Boolean)
   , [cart, services]);
 
-  const total = cartItems.reduce((s, i) => s + (i.price * discountRate), 0);
-  const original = cartItems.reduce((s, i) => s + i.price, 0);
+  const total = cartItems.reduce((s, i) => s + (i.price * discountRate), 0)
+    + customItems.reduce((s, ci) => s + ci.amount, 0);
+  const original = cartItems.reduce((s, i) => s + i.price, 0)
+    + customItems.reduce((s, ci) => s + ci.amount, 0);
 
   async function doSearch() {
     if (!keyword.trim()) return;
@@ -59,6 +68,7 @@ export default function CheckoutPage({ levels, members, onReload }: Props) {
   async function selectMember(m: MemberFull) {
     setSelected(m);
     setCart([]);
+    setCustomItems([]);
     setNote("");
     try { setServices(await getServices()); } catch {}
   }
@@ -67,19 +77,35 @@ export default function CheckoutPage({ levels, members, onReload }: Props) {
     setCart(prev => prev.includes(sid) ? prev.filter(id => id !== sid) : [...prev, sid]);
   }
 
+  function addCustomItem() {
+    const amt = parseFloat(customAmount);
+    if (!customName.trim() || isNaN(amt) || amt <= 0) return;
+    setCustomItems(prev => [...prev, { name: customName.trim(), amount: amt }]);
+    setCustomName("");
+    setCustomAmount("");
+  }
+
+  function removeCustomItem(index: number) {
+    setCustomItems(prev => prev.filter((_, i) => i !== index));
+  }
+
   async function doCheckout() {
-    if (!selected || cart.length === 0) return;
+    if (!selected || (cart.length === 0 && customItems.length === 0)) return;
     if (payment === "余额" && selected.balance < total) {
       setToast(`余额不足！当前 ¥${selected.balance.toFixed(2)}，需 ¥${total.toFixed(2)}`);
       return;
     }
     setLoading(true);
     try {
-      const r = await checkout(selected.id, cart, payment, note);
+      const r = await checkout(
+        selected.id, cart, payment, note,
+        customItems.length > 0 ? customItems : undefined,
+      );
       setReceipt(r);
       setToast(`✅ 结账成功！实付 ¥${r.total.toFixed(2)}，余额 ¥${r.new_balance.toFixed(2)}`);
       setSelected(null);
       setCart([]);
+      setCustomItems([]);
       setKeyword("");
       setResults([]);
       setSearched(false);
@@ -125,7 +151,6 @@ export default function CheckoutPage({ levels, members, onReload }: Props) {
     <div className="checkout-page">
       {toast && <div className="toast" onClick={() => setToast("")}>{toast}</div>}
 
-      {/* 最近顾客快捷入口 */}
       {!selected && recentMembers.length > 0 && (
         <div className="recent-section">
           <div className="section-label">🕐 最近顾客</div>
@@ -142,7 +167,6 @@ export default function CheckoutPage({ levels, members, onReload }: Props) {
         </div>
       )}
 
-      {/* 搜索区 */}
       <div className="search-bar">
         <input
           className="input input-lg"
@@ -188,7 +212,7 @@ export default function CheckoutPage({ levels, members, onReload }: Props) {
               </div>
             </div>
             <div className="member-balance">余额 ¥{selected.balance.toFixed(2)}</div>
-            <button className="btn btn-ghost btn-sm" onClick={() => { setSelected(null); setCart([]); }}>切换会员</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => { setSelected(null); setCart([]); setCustomItems([]); }}>切换会员</button>
           </div>
 
           <div className="checkout-layout">
@@ -221,7 +245,7 @@ export default function CheckoutPage({ levels, members, onReload }: Props) {
             <div className="cart-panel">
               <div className="cart-scroll">
                 <h3>待结账清单</h3>
-                {cartItems.length === 0 ? (
+                {cartItems.length === 0 && customItems.length === 0 ? (
                   <div className="cart-empty">点击左侧服务项目加入清单</div>
                 ) : (
                   <>
@@ -233,7 +257,27 @@ export default function CheckoutPage({ levels, members, onReload }: Props) {
                           <button className="btn-icon" onClick={() => toggleCart(item.id)}>✕</button>
                         </div>
                       ))}
+                      {customItems.map((ci, i) => (
+                        <div key={`c${i}`} className="cart-item" style={{background:"var(--info-bg)"}}>
+                          <span>✨ {ci.name}</span>
+                          <span>¥{ci.amount.toFixed(2)}</span>
+                          <button className="btn-icon" onClick={() => removeCustomItem(i)}>✕</button>
+                        </div>
+                      ))}
                     </div>
+
+                    {/* 自定义金额输入 */}
+                    <div className="custom-add" style={{marginTop:8,display:"flex",gap:6,flexWrap:"wrap"}}>
+                      <input className="input input-sm" placeholder="项目名（如：洗发水）" value={customName}
+                        onChange={e => setCustomName(e.target.value)} style={{flex:1,minWidth:90}} />
+                      <input className="input input-sm" placeholder="金额" type="number" step="0.01" min="0"
+                        value={customAmount} onChange={e => setCustomAmount(e.target.value)}
+                        onKeyDown={e => e.key === "Enter" && addCustomItem()}
+                        style={{width:80}} />
+                      <button className="btn btn-sm" onClick={addCustomItem}
+                        disabled={!customName.trim() || !customAmount}>➕ 添加</button>
+                    </div>
+
                     <div className="cart-summary">
                       {discountRate < 1 && (
                         <div className="cart-row"><span>原价合计</span><span>¥{original.toFixed(2)}</span></div>
@@ -266,10 +310,10 @@ export default function CheckoutPage({ levels, members, onReload }: Props) {
                 />
                 <button
                   className="btn btn-success btn-lg btn-block"
-                  disabled={cartItems.length === 0 || loading}
+                  disabled={(cartItems.length === 0 && customItems.length === 0) || loading}
                   onClick={doCheckout}
                 >
-                  {loading ? "处理中..." : cartItems.length === 0 ? "请选择服务项目" : `✅ 确认结账  ¥${total.toFixed(2)}`}
+                  {loading ? "处理中..." : (cartItems.length === 0 && customItems.length === 0) ? "请选择服务项目" : `✅ 确认结账  ¥${total.toFixed(2)}`}
                 </button>
               </div>
             </div>
