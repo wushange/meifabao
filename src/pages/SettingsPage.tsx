@@ -58,7 +58,7 @@ export default function SettingsPage({
   const [importStep, setImportStep] = useState<"upload"|"mapping"|"preview"|"result">("upload");
   const [importData, setImportData] = useState<any[]>([]);
   const [detectedCols, setDetectedCols] = useState<string[]>([]);
-  const [importMapping, setImportMapping] = useState({name:"",phone:"",level:"",balance:"",note:"",totalSpent:""});
+  const [importMapping, setImportMapping] = useState<Record<string,string>>({name:"",phone:"",level:"",balance:"",note:"",totalSpent:""});
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [importResult, setImportResult] = useState<{ok:number;skip:number}|null>(null);
 
