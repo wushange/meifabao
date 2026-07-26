@@ -4,20 +4,20 @@
    ═══════════════════════════════════════════ */
 
 :root {
-  --gold: #c9952a;
-  --gold-light: #f7edd8;
-  --gold-lighter: #fdf6eb;
-  --gold-dark: #a87720;
-  --gold-gradient: linear-gradient(135deg, #d4a843 0%, #c9952a 100%);
-  --bg: #f4f6f9;
-  --sidebar-bg: #1e1810;
-  --sidebar-active: rgba(201,149,42,.18);
+  --gold: #2563eb;
+  --gold-light: #dbeafe;
+  --gold-lighter: #eff6ff;
+  --gold-dark: #1d4ed8;
+  --gold-gradient: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  --bg: #F4F6FB;
+  --sidebar-bg: #0f172a;
+  --sidebar-active: rgba(37,99,235,.18);
   --card: #ffffff;
-  --border: #e8e0d0;
-  --border-light: #f0ece4;
-  --text: #2d2416;
-  --text-secondary: #8a7a68;
-  --text-tertiary: #b8a898;
+  --border: #e2e6ef;
+  --border-light: #eef0f6;
+  --text: #1e293b;
+  --text-secondary: #64748b;
+  --text-tertiary: #94a3b8;
   --success: #16a34a;
   --success-bg: #f0fdf4;
   --success-border: #bbf7d0;

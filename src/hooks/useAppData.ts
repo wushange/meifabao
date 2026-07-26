@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
-  getMembers, getServices, getRecords, getLevels,
-  MemberFull, ServiceItem, RecordItem, LevelInfo, RechargeItem,
+  getMembers, getServices, getRecords,
+  MemberFull, ServiceItem, RecordItem, RechargeItem,
   getRecharges,
 } from "../db";
 
@@ -10,7 +10,6 @@ export interface AppData {
   services: ServiceItem[];
   records: RecordItem[];
   recharges: RechargeItem[];
-  levels: LevelInfo[];
   loading: boolean;
   error: string;
   reload: () => void;
@@ -21,7 +20,6 @@ export function useAppData(): AppData {
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [records, setRecords] = useState<RecordItem[]>([]);
   const [recharges, setRecharges] = useState<RechargeItem[]>([]);
-  const [levels, setLevels] = useState<LevelInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const initialLoadDone = useRef(false);
@@ -30,15 +28,14 @@ export function useAppData(): AppData {
     if (showLoading) setLoading(true);
     setError("");
     try {
-      const [m, s, r, rg, lv] = await Promise.all([
+      const [m, s, r, rg] = await Promise.all([
         getMembers(), getServices(), getRecords(),
-        getRecharges(), getLevels(),
+        getRecharges(),
       ]);
       setMembers(m);
       setServices(s);
       setRecords(r);
       setRecharges(rg);
-      setLevels(lv);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -56,5 +53,5 @@ export function useAppData(): AppData {
     loadAll(false);
   }, [loadAll]);
 
-  return { members, services, records, recharges, levels, loading, error, reload };
+  return { members, services, records, recharges, loading, error, reload };
 }

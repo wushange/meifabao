@@ -1,23 +1,65 @@
 import { useState, useEffect } from "react";
 import * as XLSX from "xlsx";
 import {
-  LevelInfo, updateLevel, exportAllData, clearAllData, batchImportMembers,
+  exportAllData, clearAllData, batchImportMembers,
   BackupConfig, getBackupConfig, saveBackupConfig, manualBackup,
 } from "../db";
 
 interface Props {
-  levels: LevelInfo[];
   onReload: () => void;
 }
 
-export default function SettingsPage({ levels, onReload }: Props) {
+function VoiceToggle() {
+  const [enabled, setEnabled] = useState(() => localStorage.getItem("voice_enabled") !== "0");
+  function toggle() {
+    const next = !enabled;
+    setEnabled(next);
+    localStorage.setItem("voice_enabled", next ? "1" : "0");
+  }
+  return (
+    <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}} onClick={toggle}>
+      <div style={{width:44,height:24,borderRadius:12,background:enabled?"var(--success)":"#ccc",position:"relative",transition:"background .2s"}}>
+        <div style={{width:20,height:20,borderRadius:"50%",background:"#fff",position:"absolute",top:2,left:enabled?22:2,transition:"left .2s"}} />
+      </div>
+      <span>{enabled ? "已开启" : "已关闭"}</span>
+    </label>
+  );
+}
+
+const THEMES: Record<string, Record<string, string>> = {
+  "深蓝灰白": { "--gold":"#2563eb","--gold-light":"#dbeafe","--gold-lighter":"#eff6ff","--gold-dark":"#1d4ed8","--gold-gradient":"linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)","--bg":"#F4F6FB","--sidebar-bg":"#0f172a","--sidebar-active":"rgba(37,99,235,.18)","--border":"#e2e6ef","--border-light":"#eef0f6","--text":"#1e293b","--text-secondary":"#64748b","--text-tertiary":"#94a3b8" },
+  暖金: { "--gold":"#c9952a","--gold-light":"#f7edd8","--gold-lighter":"#fdf6eb","--gold-dark":"#a87720","--gold-gradient":"linear-gradient(135deg, #d4a843 0%, #c9952a 100%)","--bg":"#f4f6f9","--sidebar-bg":"#1e1810","--sidebar-active":"rgba(201,149,42,.18)","--border":"#e8e0d0","--border-light":"#f0ece4","--text":"#2d2416","--text-secondary":"#8a7a68","--text-tertiary":"#b8a898" },
+  翠绿: { "--gold":"#16a34a","--gold-light":"#dcfce7","--gold-lighter":"#f0fdf4","--gold-dark":"#15803d","--gold-gradient":"linear-gradient(135deg, #22c55e 0%, #16a34a 100%)","--bg":"#f4f9f4","--sidebar-bg":"#0f1a12","--sidebar-active":"rgba(22,163,74,.18)","--border":"#d0e8d8","--border-light":"#e8f4ec","--text":"#1c2e22","--text-secondary":"#5a7a62","--text-tertiary":"#8a9e8e" },
+  玫红: { "--gold":"#db2777","--gold-light":"#fce7f3","--gold-lighter":"#fdf2f8","--gold-dark":"#be185d","--gold-gradient":"linear-gradient(135deg, #ec4899 0%, #db2777 100%)","--bg":"#fdf5f8","--sidebar-bg":"#1a1018","--sidebar-active":"rgba(219,39,119,.18)","--border":"#e8d0d8","--border-light":"#f4e8ec","--text":"#2e1c28","--text-secondary":"#8a6a7a","--text-tertiary":"#b89aaa" },
+};
+
+function ThemePicker() {
+  const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "深蓝灰白");
+  useEffect(() => {
+    const vars = THEMES[theme] || THEMES["深蓝灰白"];
+    Object.entries(vars).forEach(([k, v]) => document.documentElement.style.setProperty(k, v));
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+  return (
+    <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+      {Object.keys(THEMES).map(name => (
+        <button key={name} className={`btn btn-sm ${theme===name?"btn-primary":"btn-outline"}`}
+          onClick={() => setTheme(name)}>{name}</button>
+      ))}
+    </div>
+  );
+}
+
+export default function SettingsPage({ onReload }: Props) {
   const [toast, setToast] = useState("");
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   // 备份配置
   const [backupConfig, setBackupConfig] = useState<BackupConfig>({ backup_dir: "", backup_keep_days: 30, backup_hour: 2 });
   const [backupSaving, setBackupSaving] = useState(false);
   const [backupRunning, setBackupRunning] = useState(false);
 
+  useEffect(() => { if (toast) { const t = setTimeout(() => setToast(""), 3000); return () => clearTimeout(t); } }, [toast]);
   useEffect(() => {
     getBackupConfig().then(setBackupConfig).catch(() => {});
   }, []);
@@ -49,18 +91,6 @@ export default function SettingsPage({ levels, onReload }: Props) {
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [importResult, setImportResult] = useState<{ok:number;skip:number}|null>(null);
 
-  async function handleUpdateLevel(name: string, field: "discount"|"threshold", value: number) {
-    const lv = levels.find(l => l.name === name);
-    if (!lv) return;
-    const newDisc = field === "discount" ? value : lv.discount;
-    const newThr = field === "threshold" ? value : lv.threshold;
-    try {
-      await updateLevel(name, newDisc, newThr);
-      onReload();
-      setToast("已更新");
-    } catch (e) { setToast("更新失败: "+e); }
-  }
-
   async function handleExport() {
     try {
       const json = await exportAllData();
@@ -76,10 +106,13 @@ export default function SettingsPage({ levels, onReload }: Props) {
   }
 
   async function handleClear() {
-    if (!confirm("⚠️ 警告：将清空所有会员和消费记录！\n\n此操作不可恢复，请先备份。")) return;
-    if (!confirm("再次确认：真的要清空所有数据吗？")) return;
+    setShowClearConfirm(true);
+  }
+
+  async function doClear() {
     try {
       await clearAllData();
+      setShowClearConfirm(false);
       onReload();
       setToast("数据已清空");
     } catch (e) { setToast("清空失败: "+e); }
@@ -125,7 +158,7 @@ export default function SettingsPage({ levels, onReload }: Props) {
         level: findCol(["等级", "级别", "level"]),
         balance: findCol(["余额"]),
         note: findCol(["备注", "note", "说明", "备", "注"]),
-        totalSpent: findCol(["储值", "充值"]),
+        totalSpent: findCol(["累计消费", "总消费", "储值", "充值"]),
       });
       setImportStep("mapping");
     };
@@ -136,14 +169,13 @@ export default function SettingsPage({ levels, onReload }: Props) {
     const preview = importData.map((r: any) => {
       const bal = parseFloat(r[importMapping.balance]) || 0;
       const stored = parseFloat(r[importMapping.totalSpent]) || 0;
-      const totalSpent = stored > 0 ? Math.max(0, stored - bal) : 0;
       return {
         name: String(r[importMapping.name]||"").trim(),
         phone: String(r[importMapping.phone]||"").trim(),
         level: String(r[importMapping.level]||"普通").trim() || "普通",
         balance: bal,
         note: String(r[importMapping.note]||"").trim(),
-        total_spent: totalSpent,
+        total_spent: stored,
       };
     }).filter((m: any) => m.name && m.phone);
     setImportPreview(preview); setImportStep("preview");
@@ -161,43 +193,6 @@ export default function SettingsPage({ levels, onReload }: Props) {
       {toast && <div className="toast" onClick={() => setToast("")}>{toast}</div>}
       <div className="page-header">
         <h2>⚙️ 系统设置</h2>
-      </div>
-
-      <div className="settings-section">
-        <h3>会员等级折扣</h3>
-        <p className="section-desc">根据会员累计消费金额自动升级，享受对应折扣</p>
-        <div className="table-wrap" style={{marginTop:14}}>
-          <div className="table-scroll">
-            <table className="table">
-              <thead><tr><th>等级</th><th>折扣率</th><th>升级门槛（累计消费）</th></tr></thead>
-              <tbody>
-                {levels.map(lv => (
-                  <tr key={lv.name}>
-                    <td><span className={`level-tag level-${lv.name}`}>{lv.name}</span></td>
-                    <td>
-                      <div style={{display:"flex",alignItems:"center",gap:8}}>
-                        <input className="input input-sm" type="number" step="0.01" min="0" max="1"
-                          value={lv.discount}
-                          onChange={e => handleUpdateLevel(lv.name, "discount", parseFloat(e.target.value)||0)}
-                          style={{width:90}} />
-                        <span style={{color:"var(--text-secondary)",fontSize:"var(--font-size-sm)"}}>（{(lv.discount*100).toFixed(0)}% 折）</span>
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{display:"flex",alignItems:"center",gap:8}}>
-                        <input className="input input-sm" type="number" min="0"
-                          value={lv.threshold}
-                          onChange={e => handleUpdateLevel(lv.name, "threshold", parseFloat(e.target.value)||0)}
-                          style={{width:100}} />
-                        <span style={{color:"var(--text-secondary)",fontSize:"var(--font-size-sm)"}}>元</span>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
       </div>
 
       <div className="settings-section">
@@ -313,9 +308,45 @@ export default function SettingsPage({ levels, onReload }: Props) {
         <p className="hint">备份格式为 .xlsx，文件名格式：members_YYYY-MM-DD.xlsx。手动备份文件名会加时间戳。</p>
       </div>
 
+      <div className="settings-section">
+        <h3>🔊 语音播报</h3>
+        <p className="section-desc">结账成功时语音播报，可自定义模板</p>
+        <VoiceToggle />
+        <div style={{marginTop:12}}>
+          <label style={{fontSize:"var(--font-size-sm)",color:"var(--text-secondary)",display:"block",marginBottom:4}}>
+            播报模板（{'{payment}'}={'支付方式'} {'{total}'}={'金额'} {'{balance}'}={'余额'}）
+          </label>
+          <input className="input"
+            defaultValue={localStorage.getItem("voice_template") || "本次{payment}，消费{total}元，余额{balance}元，欢迎下次光临"}
+            onBlur={e => localStorage.setItem("voice_template", e.target.value)}
+            style={{width:"100%"}} />
+        </div>
+      </div>
+
+      <div className="settings-section">
+        <h3>🎨 主题配色</h3>
+        <p className="section-desc">选择界面配色方案，即时生效</p>
+        <ThemePicker />
+      </div>
+
       <div className="settings-section" style={{textAlign:"center",opacity:.6}}>
         <p style={{fontSize:"var(--font-size-sm)",color:"var(--text-tertiary)"}}>小凤美发管理系统 · v0.1.0</p>
       </div>
+
+      {/* 清空确认弹窗 */}
+      {showClearConfirm && (
+        <div className="modal-overlay" onClick={() => setShowClearConfirm(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h3>⚠️ 确认清空数据</h3>
+            <p style={{margin:"12px 0",color:"var(--danger)"}}>将清空所有会员和消费记录，此操作不可恢复！</p>
+            <p style={{marginBottom:16,color:"var(--text-secondary)",fontSize:"var(--font-size-sm)"}}>建议先导出备份</p>
+            <div className="modal-actions">
+              <button className="btn" onClick={() => setShowClearConfirm(false)}>取消</button>
+              <button className="btn btn-danger" onClick={doClear}>确认清空</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

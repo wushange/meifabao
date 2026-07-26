@@ -39,11 +39,14 @@ pub struct Service {
 #[derive(Serialize)]
 pub struct Record {
     pub id: i32,
+    pub order_id: i64,
     pub member_id: i32,
     pub member_name: String,
     pub service_id: i32,
     pub service_name: String,
     pub amount: f64,
+    pub original_price: f64,
+    pub discount_rate: f64,
     pub payment_method: String,
     pub note: String,
     pub created_at: String,
@@ -58,13 +61,6 @@ pub struct Recharge {
     pub created_at: String,
 }
 
-#[derive(Serialize)]
-pub struct LevelInfo {
-    pub name: String,
-    pub discount: f64,
-    pub threshold: f64,
-}
-
 #[derive(Deserialize)]
 pub struct ImportMember {
     pub name: String,
@@ -73,6 +69,12 @@ pub struct ImportMember {
     pub balance: Option<f64>,
     pub note: Option<String>,
     pub total_spent: Option<f64>,
+}
+
+#[derive(Deserialize)]
+pub struct CustomService {
+    pub name: String,
+    pub price: f64,
 }
 
 #[derive(Serialize)]
@@ -159,10 +161,17 @@ pub fn update_member(db_path: tauri::State<PathBuf>, member: Member) -> Result<(
 #[tauri::command]
 pub fn delete_member(db_path: tauri::State<PathBuf>, id: i32) -> Result<(), String> {
     let c = conn(db_path.inner())?;
-    c.execute("DELETE FROM records WHERE member_id=?1", rusqlite::params![id]).map_err(|e| e.to_string())?;
-    c.execute("DELETE FROM recharges WHERE member_id=?1", rusqlite::params![id]).map_err(|e| e.to_string())?;
-    c.execute("DELETE FROM members WHERE id=?1", rusqlite::params![id]).map_err(|e| e.to_string())?;
-    Ok(())
+    c.execute("BEGIN", []).map_err(|e| e.to_string())?;
+    let result = (|| -> Result<(), String> {
+        c.execute("DELETE FROM records WHERE member_id=?1", rusqlite::params![id]).map_err(|e| e.to_string())?;
+        c.execute("DELETE FROM recharges WHERE member_id=?1", rusqlite::params![id]).map_err(|e| e.to_string())?;
+        c.execute("DELETE FROM members WHERE id=?1", rusqlite::params![id]).map_err(|e| e.to_string())?;
+        Ok(())
+    })();
+    match result {
+        Ok(()) => { c.execute("COMMIT", []).map_err(|e| e.to_string())?; Ok(()) }
+        Err(e) => { let _ = c.execute("ROLLBACK", []); Err(e) }
+    }
 }
 
 #[tauri::command]
@@ -231,59 +240,75 @@ pub fn delete_service(db_path: tauri::State<PathBuf>, id: i32) -> Result<(), Str
     Ok(())
 }
 
-// ── 等级折扣命令 ──
-
-#[tauri::command]
-pub fn get_levels(db_path: tauri::State<PathBuf>) -> Result<Vec<LevelInfo>, String> {
-    let c = conn(db_path.inner())?;
-    let mut stmt = c.prepare("SELECT name, discount, threshold FROM levels ORDER BY discount DESC")
-        .map_err(|e| e.to_string())?;
-    let rows = stmt.query_map([], |row| {
-        Ok(LevelInfo { name: row.get(0)?, discount: row.get(1)?, threshold: row.get(2)? })
-    }).map_err(|e| e.to_string())?;
-    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn update_level(db_path: tauri::State<PathBuf>, name: String, discount: f64, threshold: f64) -> Result<(), String> {
-    let c = conn(db_path.inner())?;
-    c.execute("UPDATE levels SET discount=?1, threshold=?2 WHERE name=?3", rusqlite::params![discount, threshold, name])
-        .map_err(|e| e.to_string())?;
-    Ok(())
-}
-
 // ── 消费记录命令 ──
 
 #[tauri::command]
 pub fn get_records(db_path: tauri::State<PathBuf>, member_id: Option<i32>, limit: Option<i32>) -> Result<Vec<Record>, String> {
     let c = conn(db_path.inner())?;
-    let lim = limit.unwrap_or(200);
     let records = if let Some(mid) = member_id {
-        let mut stmt = c.prepare(
-            "SELECT r.id, r.member_id, r.member_name, COALESCE(r.service_id,0), r.service_name, r.amount, r.payment_method, COALESCE(r.note,''), r.created_at
-             FROM records r WHERE r.member_id=?1 ORDER BY r.created_at DESC LIMIT ?2"
-        ).map_err(|e| e.to_string())?;
-        let rows = stmt.query_map(rusqlite::params![mid, lim], |row| {
-            Ok(Record {
-                id: row.get(0)?, member_id: row.get(1)?, member_name: row.get(2)?,
-                service_id: row.get(3)?, service_name: row.get(4)?, amount: row.get(5)?,
-                payment_method: row.get(6)?, note: row.get(7)?, created_at: row.get(8)?,
-            })
-        }).map_err(|e| e.to_string())?;
-        rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
+        if let Some(lim) = limit {
+            let mut stmt = c.prepare(
+                "SELECT r.id, COALESCE(r.order_id,0), r.member_id, r.member_name, COALESCE(r.service_id,0), r.service_name, r.amount,
+                        COALESCE(r.original_price,0), COALESCE(r.discount_rate,1.0), r.payment_method, COALESCE(r.note,''), r.created_at
+                 FROM records r WHERE r.member_id=?1 ORDER BY r.created_at DESC LIMIT ?2"
+            ).map_err(|e| e.to_string())?;
+            let rows = stmt.query_map(rusqlite::params![mid, lim], |row| {
+                Ok(Record {
+                    id: row.get(0)?, order_id: row.get(1)?, member_id: row.get(2)?, member_name: row.get(3)?,
+                    service_id: row.get(4)?, service_name: row.get(5)?, amount: row.get(6)?,
+                    original_price: row.get(7)?, discount_rate: row.get(8)?,
+                    payment_method: row.get(9)?, note: row.get(10)?, created_at: row.get(11)?,
+                })
+            }).map_err(|e| e.to_string())?;
+            rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
+        } else {
+            let mut stmt = c.prepare(
+                "SELECT r.id, COALESCE(r.order_id,0), r.member_id, r.member_name, COALESCE(r.service_id,0), r.service_name, r.amount,
+                        COALESCE(r.original_price,0), COALESCE(r.discount_rate,1.0), r.payment_method, COALESCE(r.note,''), r.created_at
+                 FROM records r WHERE r.member_id=?1 ORDER BY r.created_at DESC"
+            ).map_err(|e| e.to_string())?;
+            let rows = stmt.query_map(rusqlite::params![mid], |row| {
+                Ok(Record {
+                    id: row.get(0)?, order_id: row.get(1)?, member_id: row.get(2)?, member_name: row.get(3)?,
+                    service_id: row.get(4)?, service_name: row.get(5)?, amount: row.get(6)?,
+                    original_price: row.get(7)?, discount_rate: row.get(8)?,
+                    payment_method: row.get(9)?, note: row.get(10)?, created_at: row.get(11)?,
+                })
+            }).map_err(|e| e.to_string())?;
+            rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
+        }
     } else {
-        let mut stmt = c.prepare(
-            "SELECT r.id, r.member_id, r.member_name, COALESCE(r.service_id,0), r.service_name, r.amount, r.payment_method, COALESCE(r.note,''), r.created_at
-             FROM records r ORDER BY r.created_at DESC LIMIT ?1"
-        ).map_err(|e| e.to_string())?;
-        let rows = stmt.query_map([lim], |row| {
-            Ok(Record {
-                id: row.get(0)?, member_id: row.get(1)?, member_name: row.get(2)?,
-                service_id: row.get(3)?, service_name: row.get(4)?, amount: row.get(5)?,
-                payment_method: row.get(6)?, note: row.get(7)?, created_at: row.get(8)?,
-            })
-        }).map_err(|e| e.to_string())?;
-        rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
+        if let Some(lim) = limit {
+            let mut stmt = c.prepare(
+                "SELECT r.id, COALESCE(r.order_id,0), r.member_id, r.member_name, COALESCE(r.service_id,0), r.service_name, r.amount,
+                        COALESCE(r.original_price,0), COALESCE(r.discount_rate,1.0), r.payment_method, COALESCE(r.note,''), r.created_at
+                 FROM records r ORDER BY r.created_at DESC LIMIT ?1"
+            ).map_err(|e| e.to_string())?;
+            let rows = stmt.query_map([lim], |row| {
+                Ok(Record {
+                    id: row.get(0)?, order_id: row.get(1)?, member_id: row.get(2)?, member_name: row.get(3)?,
+                    service_id: row.get(4)?, service_name: row.get(5)?, amount: row.get(6)?,
+                    original_price: row.get(7)?, discount_rate: row.get(8)?,
+                    payment_method: row.get(9)?, note: row.get(10)?, created_at: row.get(11)?,
+                })
+            }).map_err(|e| e.to_string())?;
+            rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
+        } else {
+            let mut stmt = c.prepare(
+                "SELECT r.id, COALESCE(r.order_id,0), r.member_id, r.member_name, COALESCE(r.service_id,0), r.service_name, r.amount,
+                        COALESCE(r.original_price,0), COALESCE(r.discount_rate,1.0), r.payment_method, COALESCE(r.note,''), r.created_at
+                 FROM records r ORDER BY r.created_at DESC"
+            ).map_err(|e| e.to_string())?;
+            let rows = stmt.query_map([], |row| {
+                Ok(Record {
+                    id: row.get(0)?, order_id: row.get(1)?, member_id: row.get(2)?, member_name: row.get(3)?,
+                    service_id: row.get(4)?, service_name: row.get(5)?, amount: row.get(6)?,
+                    original_price: row.get(7)?, discount_rate: row.get(8)?,
+                    payment_method: row.get(9)?, note: row.get(10)?, created_at: row.get(11)?,
+                })
+            }).map_err(|e| e.to_string())?;
+            rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
+        }
     };
     Ok(records)
 }
@@ -295,106 +320,108 @@ pub fn delete_record(db_path: tauri::State<PathBuf>, id: i32) -> Result<(), Stri
     Ok(())
 }
 
-// ── 收银结账命令（支持多服务 + 折扣 + 余额扣减）──
+// ── 收银结账命令 ──
 
 #[tauri::command]
 pub fn checkout(
     db_path: tauri::State<PathBuf>,
     member_id: i32,
     service_ids: Vec<i32>,
+    custom_services: Vec<CustomService>,
     payment_method: String,
     note: String,
 ) -> Result<CheckoutReceipt, String> {
     let c = conn(db_path.inner())?;
 
-    // 获取会员信息
-    let (member_name, level, old_balance): (String, String, f64) = c.query_row(
-        "SELECT name, level, balance FROM members WHERE id=?1",
-        rusqlite::params![member_id],
-        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-    ).map_err(|e| e.to_string())?;
-
-    // 获取折扣率
-    let discount_rate: f64 = c.query_row(
-        "SELECT discount FROM levels WHERE name=?1",
-        rusqlite::params![&level],
-        |row| row.get(0),
-    ).unwrap_or(1.0);
-
-    // 计算总价
-    let mut service_names: Vec<String> = Vec::new();
-    let mut original = 0.0;
-    let mut total = 0.0;
-
-    for sid in &service_ids {
-        let (sname, sprice): (String, f64) = c.query_row(
-            "SELECT name, price FROM services WHERE id=?1",
-            rusqlite::params![sid],
+    // 事务保护
+    c.execute("BEGIN", []).map_err(|e| e.to_string())?;
+    let result = (|| -> Result<CheckoutReceipt, String> {
+        // 获取会员信息
+        let (member_name, old_balance): (String, f64) = c.query_row(
+            "SELECT name, balance FROM members WHERE id=?1",
+            rusqlite::params![member_id],
             |row| Ok((row.get(0)?, row.get(1)?)),
-        ).map_err(|e| format!("服务ID {} 不存在: {}", sid, e))?;
-
-        service_names.push(sname.clone());
-        original += sprice;
-        let discounted = (sprice * discount_rate * 100.0).round() / 100.0;
-        total += discounted;
-
-        // 写入消费记录
-        c.execute(
-            "INSERT INTO records (member_id, service_id, member_name, service_name, amount, payment_method, note)
-             VALUES (?1,?2,?3,?4,?5,?6,?7)",
-            rusqlite::params![member_id, sid, member_name, sname, discounted, payment_method, note],
         ).map_err(|e| e.to_string())?;
-    }
 
-    let discount = original - total;
-    let mut new_balance = old_balance;
+        // 生成订单号（时间戳毫秒）
+        let order_id: i64 = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
 
-    // 余额支付：扣减余额 + 累加消费总额
-    if payment_method.contains("余额") || payment_method == "balance" {
-        if old_balance < total {
-            return Err(format!("余额不足！当前余额 ¥{:.2}，需要 ¥{:.2}", old_balance, total));
+        // 计算总价
+        let mut service_names: Vec<String> = Vec::new();
+        let mut total = 0.0;
+
+        // 预设服务
+        for sid in &service_ids {
+            let (sname, sprice): (String, f64) = c.query_row(
+                "SELECT name, price FROM services WHERE id=?1",
+                rusqlite::params![sid],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            ).map_err(|e| format!("服务ID {} 不存在: {}", sid, e))?;
+
+            service_names.push(sname.clone());
+            total += sprice;
+
+            c.execute(
+                "INSERT INTO records (order_id, member_id, service_id, member_name, service_name, amount, original_price, discount_rate, payment_method, note)
+                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
+                rusqlite::params![order_id, member_id, sid, member_name, sname, sprice, sprice, 1.0, payment_method, note],
+            ).map_err(|e| e.to_string())?;
         }
-        new_balance = old_balance - total;
-    }
 
-    // 更新会员余额和消费总额
-    c.execute(
-        "UPDATE members SET balance=?1, total_spent=total_spent+?2 WHERE id=?3",
-        rusqlite::params![new_balance, total, member_id],
-    ).map_err(|e| e.to_string())?;
+        // 自定义服务（service_id=0 标识临时服务）
+        for cs in &custom_services {
+            service_names.push(cs.name.clone());
+            total += cs.price;
 
-    // 自动升级会员等级
-    let new_total_spent: f64 = c.query_row(
-        "SELECT total_spent FROM members WHERE id=?1",
-        rusqlite::params![member_id],
-        |row| row.get(0),
-    ).map_err(|e| e.to_string())?;
+            c.execute(
+                "INSERT INTO records (order_id, member_id, service_id, member_name, service_name, amount, original_price, discount_rate, payment_method, note)
+                 VALUES (?1,?2,0,?3,?4,?5,?6,?7,?8,?9)",
+                rusqlite::params![order_id, member_id, member_name, cs.name, cs.price, cs.price, 1.0, payment_method, note],
+            ).map_err(|e| e.to_string())?;
+        }
 
-    let best_level: Option<String> = c.query_row(
-        "SELECT name FROM levels WHERE threshold <= ?1 ORDER BY threshold DESC LIMIT 1",
-        rusqlite::params![new_total_spent],
-        |row| row.get(0),
-    ).ok();
+        let mut new_balance = old_balance;
 
-    if let Some(ref lv) = best_level {
-        let current_levels: Vec<String> = ["钻石", "金卡", "银卡", "普通"].iter().map(|s| s.to_string()).collect();
-        let level_rank = |l: &str| current_levels.iter().position(|x| x == l).unwrap_or(99);
-        if level_rank(lv) < level_rank(&level) {
-            c.execute("UPDATE members SET level=?1 WHERE id=?2", rusqlite::params![lv, member_id])
-                .map_err(|e| e.to_string())?;
+        // 余额支付：扣减余额
+        let is_balance_pay = payment_method == "余额" || payment_method == "balance";
+        if is_balance_pay {
+            if old_balance < total {
+                return Err(format!("余额不足！当前余额 ¥{:.2}，需要 ¥{:.2}", old_balance, total));
+            }
+            new_balance = old_balance - total;
+        }
+
+        // 更新会员余额和消费总额
+        c.execute(
+            "UPDATE members SET balance=?1, total_spent=total_spent+?2 WHERE id=?3",
+            rusqlite::params![new_balance, total, member_id],
+        ).map_err(|e| e.to_string())?;
+
+        Ok(CheckoutReceipt {
+            member_name,
+            services: service_names,
+            original: (total * 100.0).round() / 100.0,
+            discount: 0.0,
+            total: (total * 100.0).round() / 100.0,
+            payment_method,
+            old_balance: (old_balance * 100.0).round() / 100.0,
+            new_balance: (new_balance * 100.0).round() / 100.0,
+        })
+    })();
+
+    match result {
+        Ok(receipt) => {
+            c.execute("COMMIT", []).map_err(|e| e.to_string())?;
+            Ok(receipt)
+        }
+        Err(e) => {
+            let _ = c.execute("ROLLBACK", []);
+            Err(e)
         }
     }
-
-    Ok(CheckoutReceipt {
-        member_name,
-        services: service_names,
-        original: (original * 100.0).round() / 100.0,
-        discount: (discount * 100.0).round() / 100.0,
-        total: (total * 100.0).round() / 100.0,
-        payment_method,
-        old_balance: (old_balance * 100.0).round() / 100.0,
-        new_balance: (new_balance * 100.0).round() / 100.0,
-    })
 }
 
 // ── 充值命令 ──
@@ -402,22 +429,28 @@ pub fn checkout(
 #[tauri::command]
 pub fn recharge(db_path: tauri::State<PathBuf>, member_id: i32, amount: f64, note: String) -> Result<f64, String> {
     let c = conn(db_path.inner())?;
-    c.execute("INSERT INTO recharges (member_id, amount, note) VALUES (?1,?2,?3)",
-        rusqlite::params![member_id, amount, note]).map_err(|e| e.to_string())?;
-    c.execute("UPDATE members SET balance=balance+?1 WHERE id=?2",
-        rusqlite::params![amount, member_id]).map_err(|e| e.to_string())?;
-    let new_balance: f64 = c.query_row("SELECT balance FROM members WHERE id=?1",
-        rusqlite::params![member_id], |row| row.get(0)).map_err(|e| e.to_string())?;
-    Ok(new_balance)
+    c.execute("BEGIN", []).map_err(|e| e.to_string())?;
+    let result = (|| -> Result<f64, String> {
+        c.execute("INSERT INTO recharges (member_id, amount, note) VALUES (?1,?2,?3)",
+            rusqlite::params![member_id, amount, note]).map_err(|e| e.to_string())?;
+        c.execute("UPDATE members SET balance=balance+?1 WHERE id=?2",
+            rusqlite::params![amount, member_id]).map_err(|e| e.to_string())?;
+        let new_balance: f64 = c.query_row("SELECT balance FROM members WHERE id=?1",
+            rusqlite::params![member_id], |row| row.get(0)).map_err(|e| e.to_string())?;
+        Ok(new_balance)
+    })();
+    match result {
+        Ok(bal) => { c.execute("COMMIT", []).map_err(|e| e.to_string())?; Ok(bal) }
+        Err(e) => { let _ = c.execute("ROLLBACK", []); Err(e) }
+    }
 }
 
 #[tauri::command]
 pub fn get_recharges(db_path: tauri::State<PathBuf>, member_id: Option<i32>) -> Result<Vec<Recharge>, String> {
     let c = conn(db_path.inner())?;
     let recharges = if let Some(mid) = member_id {
-        // 指定会员时限制条数（用于展示）
         let mut stmt = c.prepare(
-            "SELECT id, member_id, amount, COALESCE(note,''), created_at FROM recharges WHERE member_id=?1 ORDER BY created_at DESC LIMIT 200"
+            "SELECT id, member_id, amount, COALESCE(note,''), created_at FROM recharges WHERE member_id=?1 ORDER BY created_at DESC"
         ).map_err(|e| e.to_string())?;
         let rows = stmt.query_map(rusqlite::params![mid], |row| {
             Ok(Recharge { id: row.get(0)?, member_id: row.get(1)?, amount: row.get(2)?, note: row.get(3)?, created_at: row.get(4)? })
@@ -465,7 +498,10 @@ pub fn clear_all_data(db_path: tauri::State<PathBuf>) -> Result<(), String> {
 
 // ── 内部辅助（不用#[tauri::command]，供 export 复用）──
 
-fn chrono_now() -> String { "".to_string() }
+fn chrono_now() -> String {
+    let (y, mo, d, h, mi, s) = epoch_to_local();
+    format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}", y, mo, d, h, mi, s)
+}
 
 fn get_members_impl(c: &Connection) -> Result<Vec<MemberFull>, String> {
     let mut stmt = c.prepare(
@@ -491,36 +527,69 @@ fn get_services_impl(c: &Connection) -> Result<Vec<Service>, String> {
 }
 
 fn get_records_impl(c: &Connection, member_id: Option<i32>, limit: Option<i32>) -> Result<Vec<Record>, String> {
-    let lim = limit.unwrap_or(200);
     if let Some(mid) = member_id {
-        let mut stmt = c.prepare(
-            "SELECT id,member_id,member_name,COALESCE(service_id,0),service_name,amount,payment_method,COALESCE(note,''),created_at
-             FROM records WHERE member_id=?1 ORDER BY created_at DESC LIMIT ?2"
-        ).map_err(|e| e.to_string())?;
-        let rows = stmt.query_map(rusqlite::params![mid, lim], |row| {
-            Ok(Record { id: row.get(0)?, member_id: row.get(1)?, member_name: row.get(2)?,
-                service_id: row.get(3)?, service_name: row.get(4)?, amount: row.get(5)?,
-                payment_method: row.get(6)?, note: row.get(7)?, created_at: row.get(8)? })
-        }).map_err(|e| e.to_string())?;
-        rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+        if let Some(lim) = limit {
+            let mut stmt = c.prepare(
+                "SELECT id,COALESCE(order_id,0),member_id,member_name,COALESCE(service_id,0),service_name,amount,
+                        COALESCE(original_price,0),COALESCE(discount_rate,1.0),payment_method,COALESCE(note,''),created_at
+                 FROM records WHERE member_id=?1 ORDER BY created_at DESC LIMIT ?2"
+            ).map_err(|e| e.to_string())?;
+            let rows = stmt.query_map(rusqlite::params![mid, lim], |row| {
+                Ok(Record { id: row.get(0)?, order_id: row.get(1)?, member_id: row.get(2)?, member_name: row.get(3)?,
+                    service_id: row.get(4)?, service_name: row.get(5)?, amount: row.get(6)?,
+                    original_price: row.get(7)?, discount_rate: row.get(8)?,
+                    payment_method: row.get(9)?, note: row.get(10)?, created_at: row.get(11)? })
+            }).map_err(|e| e.to_string())?;
+            rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+        } else {
+            let mut stmt = c.prepare(
+                "SELECT id,COALESCE(order_id,0),member_id,member_name,COALESCE(service_id,0),service_name,amount,
+                        COALESCE(original_price,0),COALESCE(discount_rate,1.0),payment_method,COALESCE(note,''),created_at
+                 FROM records WHERE member_id=?1 ORDER BY created_at DESC"
+            ).map_err(|e| e.to_string())?;
+            let rows = stmt.query_map(rusqlite::params![mid], |row| {
+                Ok(Record { id: row.get(0)?, order_id: row.get(1)?, member_id: row.get(2)?, member_name: row.get(3)?,
+                    service_id: row.get(4)?, service_name: row.get(5)?, amount: row.get(6)?,
+                    original_price: row.get(7)?, discount_rate: row.get(8)?,
+                    payment_method: row.get(9)?, note: row.get(10)?, created_at: row.get(11)? })
+            }).map_err(|e| e.to_string())?;
+            rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+        }
     } else {
-        let mut stmt = c.prepare(
-            "SELECT id,member_id,member_name,COALESCE(service_id,0),service_name,amount,payment_method,COALESCE(note,''),created_at
-             FROM records ORDER BY created_at DESC LIMIT ?1"
-        ).map_err(|e| e.to_string())?;
-        let rows = stmt.query_map([lim], |row| {
-            Ok(Record { id: row.get(0)?, member_id: row.get(1)?, member_name: row.get(2)?,
-                service_id: row.get(3)?, service_name: row.get(4)?, amount: row.get(5)?,
-                payment_method: row.get(6)?, note: row.get(7)?, created_at: row.get(8)? })
-        }).map_err(|e| e.to_string())?;
-        rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+        if let Some(lim) = limit {
+            let mut stmt = c.prepare(
+                "SELECT id,COALESCE(order_id,0),member_id,member_name,COALESCE(service_id,0),service_name,amount,
+                        COALESCE(original_price,0),COALESCE(discount_rate,1.0),payment_method,COALESCE(note,''),created_at
+                 FROM records ORDER BY created_at DESC LIMIT ?1"
+            ).map_err(|e| e.to_string())?;
+            let rows = stmt.query_map([lim], |row| {
+                Ok(Record { id: row.get(0)?, order_id: row.get(1)?, member_id: row.get(2)?, member_name: row.get(3)?,
+                    service_id: row.get(4)?, service_name: row.get(5)?, amount: row.get(6)?,
+                    original_price: row.get(7)?, discount_rate: row.get(8)?,
+                    payment_method: row.get(9)?, note: row.get(10)?, created_at: row.get(11)? })
+            }).map_err(|e| e.to_string())?;
+            rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+        } else {
+            let mut stmt = c.prepare(
+                "SELECT id,COALESCE(order_id,0),member_id,member_name,COALESCE(service_id,0),service_name,amount,
+                        COALESCE(original_price,0),COALESCE(discount_rate,1.0),payment_method,COALESCE(note,''),created_at
+                 FROM records ORDER BY created_at DESC"
+            ).map_err(|e| e.to_string())?;
+            let rows = stmt.query_map([], |row| {
+                Ok(Record { id: row.get(0)?, order_id: row.get(1)?, member_id: row.get(2)?, member_name: row.get(3)?,
+                    service_id: row.get(4)?, service_name: row.get(5)?, amount: row.get(6)?,
+                    original_price: row.get(7)?, discount_rate: row.get(8)?,
+                    payment_method: row.get(9)?, note: row.get(10)?, created_at: row.get(11)? })
+            }).map_err(|e| e.to_string())?;
+            rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+        }
     }
 }
 
 fn get_recharges_impl(c: &Connection, member_id: Option<i32>) -> Result<Vec<Recharge>, String> {
     if let Some(mid) = member_id {
         let mut stmt = c.prepare(
-            "SELECT id,member_id,amount,COALESCE(note,''),created_at FROM recharges WHERE member_id=?1 ORDER BY created_at DESC LIMIT 200"
+            "SELECT id,member_id,amount,COALESCE(note,''),created_at FROM recharges WHERE member_id=?1 ORDER BY created_at DESC"
         ).map_err(|e| e.to_string())?;
         let rows = stmt.query_map(rusqlite::params![mid], |row| {
             Ok(Recharge { id: row.get(0)?, member_id: row.get(1)?, amount: row.get(2)?, note: row.get(3)?, created_at: row.get(4)? })
@@ -583,23 +652,8 @@ pub struct BackupResult {
     pub message: String,
 }
 
-/// 写 xlsx 会员数据到指定路径
-fn write_members_xlsx(c: &Connection, filepath: &std::path::Path) -> Result<usize, String> {
-    let mut stmt = c.prepare(
-        "SELECT name, phone, level, balance, total_spent, created_at, COALESCE(note,'') FROM members ORDER BY id"
-    ).map_err(|e| e.to_string())?;
-
-    let rows: Vec<(String,String,String,f64,f64,String,String)> = stmt.query_map([], |row| {
-        Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?))
-    }).map_err(|e| e.to_string())?
-    .collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
-
-    let count = rows.len();
-
-    let mut workbook = Workbook::new();
-    let sheet = workbook.add_worksheet();
-    sheet.set_name("会员数据").map_err(|e| e.to_string())?;
-
+/// 写 xlsx 备份到指定路径（会员 + 消费记录 + 充值记录，三个工作表）
+fn write_backup_xlsx(c: &Connection, filepath: &std::path::Path) -> Result<(usize, usize, usize), String> {
     let header_fmt = Format::new()
         .set_background_color(Color::RGB(0xC9952A))
         .set_font_color(Color::White)
@@ -607,28 +661,107 @@ fn write_members_xlsx(c: &Connection, filepath: &std::path::Path) -> Result<usiz
         .set_align(FormatAlign::Center);
     let money_fmt = Format::new().set_num_format("0.00");
 
-    let headers = ["姓名", "手机号", "等级", "余额", "累计消费", "注册时间", "备注"];
-    let col_widths: [f64; 7] = [12.0, 15.0, 8.0, 12.0, 12.0, 20.0, 20.0];
+    let mut workbook = Workbook::new();
 
-    for (i, h) in headers.iter().enumerate() {
-        sheet.write_with_format(0, i as u16, *h, &header_fmt).map_err(|e| e.to_string())?;
-        sheet.set_column_width(i as u16, col_widths[i]).map_err(|e| e.to_string())?;
+    // ── 工作表1：会员数据 ──
+    {
+        let mut stmt = c.prepare(
+            "SELECT name, phone, balance, total_spent, created_at, COALESCE(note,'') FROM members ORDER BY id"
+        ).map_err(|e| e.to_string())?;
+        let rows: Vec<(String,String,f64,f64,String,String)> = stmt.query_map([], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?))
+        }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+        let _count = rows.len();
+
+        let sheet = workbook.add_worksheet();
+        sheet.set_name("会员数据").map_err(|e| e.to_string())?;
+        let headers = ["姓名", "手机号", "余额", "累计消费", "注册时间", "备注"];
+        let widths: [f64; 6] = [12.0, 15.0, 12.0, 12.0, 20.0, 20.0];
+        for (i, h) in headers.iter().enumerate() {
+            sheet.write_with_format(0, i as u16, *h, &header_fmt).map_err(|e| e.to_string())?;
+            sheet.set_column_width(i as u16, widths[i]).map_err(|e| e.to_string())?;
+        }
+        sheet.set_row_height(0, 20.0).map_err(|e| e.to_string())?;
+        for (ri, (name, phone, balance, total_spent, created_at, note)) in rows.iter().enumerate() {
+            let r = (ri + 1) as u32;
+            sheet.write(r, 0, name.as_str()).map_err(|e| e.to_string())?;
+            sheet.write(r, 1, phone.as_str()).map_err(|e| e.to_string())?;
+            sheet.write_with_format(r, 2, *balance, &money_fmt).map_err(|e| e.to_string())?;
+            sheet.write_with_format(r, 3, *total_spent, &money_fmt).map_err(|e| e.to_string())?;
+            sheet.write(r, 4, created_at.as_str()).map_err(|e| e.to_string())?;
+            sheet.write(r, 5, note.as_str()).map_err(|e| e.to_string())?;
+        }
     }
-    sheet.set_row_height(0, 20.0).map_err(|e| e.to_string())?;
 
-    for (ri, (name, phone, level, balance, total_spent, created_at, note)) in rows.iter().enumerate() {
-        let row = (ri + 1) as u32;
-        sheet.write(row, 0, name.as_str()).map_err(|e| e.to_string())?;
-        sheet.write(row, 1, phone.as_str()).map_err(|e| e.to_string())?;
-        sheet.write(row, 2, level.as_str()).map_err(|e| e.to_string())?;
-        sheet.write_with_format(row, 3, *balance, &money_fmt).map_err(|e| e.to_string())?;
-        sheet.write_with_format(row, 4, *total_spent, &money_fmt).map_err(|e| e.to_string())?;
-        sheet.write(row, 5, created_at.as_str()).map_err(|e| e.to_string())?;
-        sheet.write(row, 6, note.as_str()).map_err(|e| e.to_string())?;
+    // ── 工作表2：消费记录 ──
+    {
+        let mut stmt = c.prepare(
+            "SELECT created_at, member_name, service_name, COALESCE(original_price,amount), COALESCE(discount_rate,1.0), amount, payment_method, COALESCE(note,'')
+             FROM records ORDER BY created_at DESC"
+        ).map_err(|e| e.to_string())?;
+        let rows: Vec<(String,String,String,f64,f64,f64,String,String)> = stmt.query_map([], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?, row.get(7)?))
+        }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+        let _count = rows.len();
+
+        let sheet = workbook.add_worksheet();
+        sheet.set_name("消费记录").map_err(|e| e.to_string())?;
+        let headers = ["时间", "会员", "服务", "原价", "折扣率", "实付", "支付方式", "备注"];
+        let widths: [f64; 8] = [20.0, 12.0, 14.0, 10.0, 8.0, 10.0, 10.0, 20.0];
+        for (i, h) in headers.iter().enumerate() {
+            sheet.write_with_format(0, i as u16, *h, &header_fmt).map_err(|e| e.to_string())?;
+            sheet.set_column_width(i as u16, widths[i]).map_err(|e| e.to_string())?;
+        }
+        sheet.set_row_height(0, 20.0).map_err(|e| e.to_string())?;
+        for (ri, (ca, mn, sn, op, dr, am, pm, nt)) in rows.iter().enumerate() {
+            let r = (ri + 1) as u32;
+            sheet.write(r, 0, ca.as_str()).map_err(|e| e.to_string())?;
+            sheet.write(r, 1, mn.as_str()).map_err(|e| e.to_string())?;
+            sheet.write(r, 2, sn.as_str()).map_err(|e| e.to_string())?;
+            sheet.write_with_format(r, 3, *op, &money_fmt).map_err(|e| e.to_string())?;
+            sheet.write(r, 4, &format!("{:.0}%", dr * 100.0)).map_err(|e| e.to_string())?;
+            sheet.write_with_format(r, 5, *am, &money_fmt).map_err(|e| e.to_string())?;
+            sheet.write(r, 6, pm.as_str()).map_err(|e| e.to_string())?;
+            sheet.write(r, 7, nt.as_str()).map_err(|e| e.to_string())?;
+        }
+    }
+
+    // ── 工作表3：充值记录 ──
+    {
+        let mut stmt = c.prepare(
+            "SELECT created_at, (SELECT name FROM members WHERE id=member_id), amount, COALESCE(note,'')
+             FROM recharges ORDER BY created_at DESC"
+        ).map_err(|e| e.to_string())?;
+        let rows: Vec<(String,String,f64,String)> = stmt.query_map([], |row| {
+            Ok((row.get(0)?, row.get::<_, String>(1).unwrap_or("未知".into()), row.get(2)?, row.get(3)?))
+        }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+        let _count = rows.len();
+
+        let sheet = workbook.add_worksheet();
+        sheet.set_name("充值记录").map_err(|e| e.to_string())?;
+        let headers = ["时间", "会员", "金额", "备注"];
+        let widths: [f64; 4] = [20.0, 12.0, 12.0, 20.0];
+        for (i, h) in headers.iter().enumerate() {
+            sheet.write_with_format(0, i as u16, *h, &header_fmt).map_err(|e| e.to_string())?;
+            sheet.set_column_width(i as u16, widths[i]).map_err(|e| e.to_string())?;
+        }
+        sheet.set_row_height(0, 20.0).map_err(|e| e.to_string())?;
+        for (ri, (ca, mn, am, nt)) in rows.iter().enumerate() {
+            let r = (ri + 1) as u32;
+            sheet.write(r, 0, ca.as_str()).map_err(|e| e.to_string())?;
+            sheet.write(r, 1, mn.as_str()).map_err(|e| e.to_string())?;
+            sheet.write_with_format(r, 2, *am, &money_fmt).map_err(|e| e.to_string())?;
+            sheet.write(r, 3, nt.as_str()).map_err(|e| e.to_string())?;
+        }
     }
 
     workbook.save(filepath).map_err(|e| e.to_string())?;
-    Ok(count)
+
+    // 返回三个表的行数
+    let count_m: usize = c.query_row("SELECT COUNT(*) FROM members", [], |r| r.get(0)).map_err(|e| e.to_string())?;
+    let count_r: usize = c.query_row("SELECT COUNT(*) FROM records", [], |r| r.get(0)).map_err(|e| e.to_string())?;
+    let count_rc: usize = c.query_row("SELECT COUNT(*) FROM recharges", [], |r| r.get(0)).map_err(|e| e.to_string())?;
+    Ok((count_m, count_r, count_rc))
 }
 
 #[tauri::command]
@@ -667,7 +800,7 @@ pub fn daily_backup(db_path: tauri::State<PathBuf>, app_handle: tauri::AppHandle
     fs::create_dir_all(&backup_dir).map_err(|e| e.to_string())?;
 
     let today = chrono_now_str();
-    let filename = format!("members_{}.xlsx", today);
+    let filename = format!("backup_{}.xlsx", today);
     let filepath = backup_dir.join(&filename);
 
     if filepath.exists() {
@@ -678,7 +811,7 @@ pub fn daily_backup(db_path: tauri::State<PathBuf>, app_handle: tauri::AppHandle
         });
     }
 
-    let count = write_members_xlsx(&c, &filepath)?;
+    let (count_m, count_r, count_rc) = write_backup_xlsx(&c, &filepath)?;
 
     // 清理旧备份
     if let Ok(entries) = fs::read_dir(&backup_dir) {
@@ -686,7 +819,7 @@ pub fn daily_backup(db_path: tauri::State<PathBuf>, app_handle: tauri::AppHandle
             .filter_map(|e| e.ok())
             .filter(|e| {
                 let n = e.file_name().to_string_lossy().to_string();
-                n.starts_with("members_") && n.ends_with(".xlsx")
+                n.starts_with("backup_") && n.ends_with(".xlsx")
             })
             .collect();
         files.sort_by_key(|e| e.metadata().and_then(|m| m.modified()).unwrap_or(std::time::SystemTime::UNIX_EPOCH));
@@ -700,7 +833,7 @@ pub fn daily_backup(db_path: tauri::State<PathBuf>, app_handle: tauri::AppHandle
     Ok(BackupResult {
         backed_up: true,
         path: filepath.to_string_lossy().to_string(),
-        message: format!("已备份 {} 名会员", count),
+        message: format!("已备份 {} 名会员，{} 条消费，{} 条充值", count_m, count_r, count_rc),
     })
 }
 
@@ -723,15 +856,15 @@ pub fn manual_backup(db_path: tauri::State<PathBuf>, app_handle: tauri::AppHandl
     fs::create_dir_all(&backup_dir).map_err(|e| e.to_string())?;
 
     let now = chrono_now_str_full();
-    let filename = format!("members_manual_{}.xlsx", now);
+    let filename = format!("backup_{}.xlsx", now);
     let filepath = backup_dir.join(&filename);
 
-    let count = write_members_xlsx(&c, &filepath)?;
+    let (count_m, count_r, count_rc) = write_backup_xlsx(&c, &filepath)?;
 
     Ok(BackupResult {
         backed_up: true,
         path: filepath.to_string_lossy().to_string(),
-        message: format!("手动备份成功！共 {} 名会员\n路径：{}", count, filepath.to_string_lossy()),
+        message: format!("手动备份成功！会员 {}，消费 {}，充值 {}\n路径：{}", count_m, count_r, count_rc, filepath.to_string_lossy()),
     })
 }
 

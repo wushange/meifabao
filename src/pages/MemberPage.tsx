@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   MemberFull, addMember, updateMember, deleteMember,
   recharge,
@@ -15,29 +15,39 @@ export default function MemberPage({ members, onReload }: Props) {
   const [editing, setEditing] = useState<MemberFull | null>(null);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [level, setLevel] = useState("普通");
   const [balance, setBalance] = useState("0");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
 
+  const PAGE_SIZE = 20;
+  const [page, setPage] = useState(1);
+
   // 充值弹窗
   const [showRecharge, setShowRecharge] = useState<MemberFull | null>(null);
   const [rechargeAmount, setRechargeAmount] = useState("");
 
+  useEffect(() => { if (toast) { const t = setTimeout(() => setToast(""), 3000); return () => clearTimeout(t); } }, [toast]);
+
   const filtered = useMemo(() => {
     if (!search.trim()) return members;
     const kw = search.toLowerCase();
-    return members.filter(m => m.name.includes(kw) || m.phone.includes(kw) || m.phone.includes(search));
+    return members.filter(m => m.name.includes(kw) || m.phone.includes(kw));
   }, [members, search]);
 
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paged = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page]);
+
+  // 搜索或数据变化时归位第一页
+  useEffect(() => { setPage(1); }, [filtered]);
+
   function openAdd() {
-    setEditing(null); setName(""); setPhone(""); setLevel("普通"); setBalance("0"); setNote("");
+    setEditing(null); setName(""); setPhone(""); setBalance("0"); setNote("");
     setError(""); setShowForm(true);
   }
   function openEdit(m: MemberFull) {
-    setEditing(m); setName(m.name); setPhone(m.phone); setLevel(m.level);
+    setEditing(m); setName(m.name); setPhone(m.phone);
     setBalance(String(m.balance)); setNote(m.note || ""); setError(""); setShowForm(true);
   }
 
@@ -47,9 +57,9 @@ export default function MemberPage({ members, onReload }: Props) {
     setSubmitting(true);
     try {
       if (editing) {
-        await updateMember(editing.id, { name: name.trim(), phone: phone.trim(), level, balance: parseFloat(balance)||0, note: note.trim() });
+        await updateMember(editing.id, { name: name.trim(), phone: phone.trim(), balance: parseFloat(balance)||0, note: note.trim() });
       } else {
-        await addMember({ name: name.trim(), phone: phone.trim(), level, balance: parseFloat(balance)||0, note: note.trim() });
+        await addMember({ name: name.trim(), phone: phone.trim(), balance: 0, note: note.trim() });
       }
       setShowForm(false); onReload();
     } catch (e: any) { setError(String(e)); }
@@ -86,18 +96,17 @@ export default function MemberPage({ members, onReload }: Props) {
         </div>
       </div>
 
-      <div className="table-wrap">
+      <div className="table-wrap" style={{padding:"16px 20px"}}>
         <div className="table-scroll">
-          <table className="table">
+          <table className="table" style={{marginBottom:0}}>
             <thead>
-              <tr><th>姓名</th><th>手机号</th><th>等级</th><th>余额</th><th>累计消费</th><th>备注</th><th>注册时间</th><th>操作</th></tr>
+              <tr><th>姓名</th><th>手机号</th><th>余额</th><th>累计消费</th><th>备注</th><th>注册时间</th><th>操作</th></tr>
             </thead>
             <tbody>
-              {filtered.map(m => (
+              {paged.map(m => (
                 <tr key={m.id}>
                   <td><strong>{m.name}</strong></td>
                   <td>{m.phone}</td>
-                  <td><span className={`level-tag level-${m.level}`}>{m.level}</span></td>
                   <td className="money">¥{m.balance.toFixed(2)}</td>
                   <td className="money">¥{(m.total_spent||0).toFixed(2)}</td>
                   <td className="note">{m.note}</td>
@@ -111,8 +120,17 @@ export default function MemberPage({ members, onReload }: Props) {
               ))}
             </tbody>
           </table>
-          {filtered.length === 0 && <div className="empty-state">暂无会员</div>}
+          {filtered.length === 0 && <div className="empty-state" style={{padding:"40px 0"}}>暂无会员</div>}
         </div>
+        {totalPages > 1 && (
+          <div style={{display:"flex",justifyContent:"center",alignItems:"center",gap:10,paddingTop:14,borderTop:"1px solid var(--border-light)",marginTop:4}}>
+            <button className="btn btn-sm btn-outline" disabled={page<=1} onClick={() => setPage(p => p-1)}>‹ 上一页</button>
+            <span style={{fontSize:"var(--font-size-sm)",color:"var(--text-secondary)",minWidth:100,textAlign:"center"}}>
+              {page} / {totalPages}（共 {filtered.length} 人）
+            </span>
+            <button className="btn btn-sm btn-outline" disabled={page>=totalPages} onClick={() => setPage(p => p+1)}>下一页 ›</button>
+          </div>
+        )}
       </div>
 
       {/* 新增/编辑弹窗 */}
@@ -125,12 +143,10 @@ export default function MemberPage({ members, onReload }: Props) {
             <input className="input" value={name} onChange={e => setName(e.target.value)} />
             <label>手机号</label>
             <input className="input" value={phone} onChange={e => setPhone(e.target.value)} />
-            <label>等级</label>
-            <select className="input" value={level} onChange={e => setLevel(e.target.value)}>
-              <option>普通</option><option>银卡</option><option>金卡</option><option>钻石</option>
-            </select>
             <label>余额</label>
-            <input className="input" type="number" value={balance} onChange={e => setBalance(e.target.value)} />
+            <div style={{padding:"8px 12px",background:"var(--bg)",borderRadius:6,fontWeight:600,color:"var(--gold-dark)"}}>
+              ¥{editing ? editing.balance.toFixed(2) : "0.00"} → 仅可通过"充值"修改
+            </div>
             <label>备注</label>
             <input className="input" value={note} onChange={e => setNote(e.target.value)} />
             <div className="modal-actions">
@@ -149,6 +165,11 @@ export default function MemberPage({ members, onReload }: Props) {
             <p>当前余额：¥{showRecharge.balance.toFixed(2)}</p>
             <label>充值金额</label>
             <input className="input input-lg" type="number" value={rechargeAmount} onChange={e => setRechargeAmount(e.target.value)} autoFocus />
+            <div style={{display:"flex",gap:6,marginTop:8}}>
+              {[100, 200, 300, 500].map(amt => (
+                <button key={amt} className="btn btn-sm btn-outline" onClick={() => setRechargeAmount(String(amt))}>¥{amt}</button>
+              ))}
+            </div>
             <div className="modal-actions">
               <button className="btn" onClick={() => setShowRecharge(null)}>取消</button>
               <button className="btn btn-success" onClick={doRecharge}>确认充值</button>

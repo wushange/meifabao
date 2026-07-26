@@ -39,11 +39,14 @@ pub fn init_db(db_path: &Path) -> rusqlite::Result<()> {
     conn.execute(
         "CREATE TABLE IF NOT EXISTS records (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_id INTEGER NOT NULL DEFAULT 0,
             member_id INTEGER NOT NULL,
             service_id INTEGER,
             member_name TEXT NOT NULL,
             service_name TEXT NOT NULL,
             amount REAL NOT NULL,
+            original_price REAL NOT NULL DEFAULT 0,
+            discount_rate REAL NOT NULL DEFAULT 1.0,
             payment_method TEXT NOT NULL,
             note TEXT DEFAULT '',
             created_at TEXT DEFAULT (datetime('now','localtime')),
@@ -51,6 +54,11 @@ pub fn init_db(db_path: &Path) -> rusqlite::Result<()> {
         )",
         (),
     )?;
+
+    // 兼容旧库：加列
+    let _ = conn.execute("ALTER TABLE records ADD COLUMN order_id INTEGER NOT NULL DEFAULT 0", ());
+    let _ = conn.execute("ALTER TABLE records ADD COLUMN original_price REAL NOT NULL DEFAULT 0", ());
+    let _ = conn.execute("ALTER TABLE records ADD COLUMN discount_rate REAL NOT NULL DEFAULT 1.0", ());
 
     // 充值记录表
     conn.execute(
@@ -61,17 +69,6 @@ pub fn init_db(db_path: &Path) -> rusqlite::Result<()> {
             note TEXT DEFAULT '',
             created_at TEXT DEFAULT (datetime('now','localtime')),
             FOREIGN KEY (member_id) REFERENCES members(id)
-        )",
-        (),
-    )?;
-
-    // 等级折扣表
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS levels (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL UNIQUE,
-            discount REAL NOT NULL DEFAULT 1.0,
-            threshold REAL NOT NULL DEFAULT 0
         )",
         (),
     )?;
@@ -91,17 +88,10 @@ pub fn init_db(db_path: &Path) -> rusqlite::Result<()> {
         )?;
     }
 
-    // 插入默认等级折扣
-    let lc: i32 = conn.query_row("SELECT COUNT(*) FROM levels", [], |r| r.get(0))?;
-    if lc == 0 {
-        conn.execute_batch(
-            "INSERT INTO levels (name, discount, threshold) VALUES
-             ('普通', 1.0, 0),
-             ('银卡', 0.9, 500),
-             ('金卡', 0.85, 1000),
-             ('钻石', 0.75, 3000);"
-        )?;
-    }
+    // 索引
+    let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_records_member_id ON records(member_id)", ());
+    let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_records_created_at ON records(created_at)", ());
+    let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_recharges_member_id ON recharges(member_id)", ());
 
     // 设置表（key-value 存储）
     conn.execute(

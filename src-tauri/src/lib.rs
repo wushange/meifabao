@@ -21,8 +21,6 @@ pub fn run() {
             add_service,
             update_service,
             delete_service,
-            get_levels,
-            update_level,
             get_records,
             delete_record,
             checkout,

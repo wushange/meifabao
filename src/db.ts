@@ -22,11 +22,14 @@ export interface ServiceItem {
 
 export interface RecordItem {
   id: number;
+  order_id: number;
   member_id: number;
   member_name: string;
   service_id: number;
   service_name: string;
   amount: number;
+  original_price: number;
+  discount_rate: number;
   payment_method: string;
   note: string;
   created_at: string;
@@ -38,12 +41,6 @@ export interface RechargeItem {
   amount: number;
   note: string;
   created_at: string;
-}
-
-export interface LevelInfo {
-  name: string;
-  discount: number;
-  threshold: number;
 }
 
 export interface CheckoutReceipt {
@@ -67,7 +64,7 @@ export async function searchMembers(keyword: string): Promise<MemberFull[]> {
   return await invoke<MemberFull[]>("search_members", { keyword });
 }
 
-export async function addMember(data: { name: string; phone: string; level: string; balance: number; note?: string }): Promise<number> {
+export async function addMember(data: { name: string; phone: string; balance: number; note?: string }): Promise<number> {
   return await invoke<number>("add_member", { member: { id: null, ...data } });
 }
 
@@ -102,14 +99,6 @@ export async function deleteService(id: number): Promise<void> {
   await invoke("delete_service", { id });
 }
 
-export async function getLevels(): Promise<LevelInfo[]> {
-  return await invoke<LevelInfo[]>("get_levels");
-}
-
-export async function updateLevel(name: string, discount: number, threshold: number): Promise<void> {
-  await invoke("update_level", { name, discount, threshold });
-}
-
 export async function getRecords(memberId?: number, limit?: number): Promise<RecordItem[]> {
   return await invoke<RecordItem[]>("get_records", { memberId: memberId ?? null, limit: limit ?? null });
 }
@@ -118,14 +107,20 @@ export async function deleteRecord(id: number): Promise<void> {
   await invoke("delete_record", { id });
 }
 
+export interface CustomService {
+  name: string;
+  price: number;
+}
+
 export async function checkout(
   memberId: number,
   serviceIds: number[],
+  customServices: CustomService[],
   paymentMethod: string,
   note: string,
 ): Promise<CheckoutReceipt> {
   return await invoke<CheckoutReceipt>("checkout", {
-    memberId, serviceIds, paymentMethod, note,
+    memberId, serviceIds, customServices, paymentMethod, note,
   });
 }
 

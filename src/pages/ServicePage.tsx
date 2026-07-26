@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ServiceItem, addService, updateService, deleteService } from "../db";
 
 interface Props {
@@ -15,6 +15,8 @@ export default function ServicePage({ services, onReload }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
+
+  useEffect(() => { if (toast) { const t = setTimeout(() => setToast(""), 3000); return () => clearTimeout(t); } }, [toast]);
 
   const categories = [...new Set(services.map(s => s.category))];
 

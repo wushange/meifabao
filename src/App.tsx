@@ -78,35 +78,35 @@ export default function App() {
         </div>
       </aside>
 
-      {/* 主内容 */}
+      {/* 主内容：所有页面始终渲染，通过 display 切换保留状态 */}
       <main className="main-content">
-        {activeTab === "checkout" && (
-          <CheckoutPage levels={data.levels} onReload={data.reload} />
-        )}
-        {activeTab === "members" && (
+        <div style={{display: activeTab === "checkout" ? "block" : "none"}}>
+          <CheckoutPage onReload={data.reload} />
+        </div>
+        <div style={{display: activeTab === "members" ? "block" : "none"}}>
           <MemberPage members={data.members} onReload={data.reload} />
-        )}
-        {activeTab === "records" && (
+        </div>
+        <div style={{display: activeTab === "records" ? "block" : "none"}}>
           <RecordPage
             records={data.records}
             recharges={data.recharges}
             members={data.members}
             onReload={data.reload}
           />
-        )}
-        {activeTab === "services" && (
+        </div>
+        <div style={{display: activeTab === "services" ? "block" : "none"}}>
           <ServicePage services={data.services} onReload={data.reload} />
-        )}
-        {activeTab === "stats" && (
+        </div>
+        <div style={{display: activeTab === "stats" ? "block" : "none"}}>
           <StatsPage
             members={data.members}
             records={data.records}
             recharges={data.recharges}
           />
-        )}
-        {activeTab === "settings" && (
-          <SettingsPage levels={data.levels} onReload={data.reload} />
-        )}
+        </div>
+        <div style={{display: activeTab === "settings" ? "block" : "none"}}>
+          <SettingsPage onReload={data.reload} />
+        </div>
       </main>
     </div>
   );

@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { RecordItem, deleteRecord, MemberFull, RechargeItem } from "../db";
+import { useState, useMemo, useEffect } from "react";
+import { RecordItem, MemberFull, RechargeItem } from "../db";
 
 interface Props {
   records: RecordItem[];
@@ -13,7 +13,11 @@ type TabType = "all" | "consume" | "recharge";
 export default function RecordPage({ records, recharges, members, onReload }: Props) {
   const [tab, setTab] = useState<TabType>("all");
   const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [toast, setToast] = useState("");
+
+  useEffect(() => { if (toast) { const t = setTimeout(() => setToast(""), 3000); return () => clearTimeout(t); } }, [toast]);
 
   const filteredRecords = useMemo(() => {
     let list = records;
@@ -21,25 +25,27 @@ export default function RecordPage({ records, recharges, members, onReload }: Pr
       const kw = search.toLowerCase();
       list = list.filter(r => r.member_name.includes(kw) || r.service_name.includes(kw));
     }
+    if (dateFrom) list = list.filter(r => r.created_at >= dateFrom);
+    if (dateTo) list = list.filter(r => r.created_at <= dateTo + "T23:59:59");
     return list;
-  }, [records, search]);
+  }, [records, search, dateFrom, dateTo]);
 
   const filteredRecharges = useMemo(() => {
-    if (!search.trim()) return recharges;
-    const kw = search.toLowerCase();
-    return recharges.filter(r => {
-      const m = members.find(x => x.id === r.member_id);
-      return m?.name.includes(kw) || m?.phone.includes(kw);
-    });
-  }, [recharges, search, members]);
+    let list = recharges;
+    if (search.trim()) {
+      const kw = search.toLowerCase();
+      list = list.filter(r => {
+        const m = members.find(x => x.id === r.member_id);
+        return m?.name.includes(kw) || m?.phone.includes(kw);
+      });
+    }
+    if (dateFrom) list = list.filter(r => r.created_at >= dateFrom);
+    if (dateTo) list = list.filter(r => r.created_at <= dateTo + "T23:59:59");
+    return list;
+  }, [recharges, search, dateFrom, dateTo, members]);
 
   function memberName(mid: number) {
     return members.find(m => m.id === mid)?.name || "未知";
-  }
-
-  async function doDelete(id: number) {
-    if (!confirm("确定删除此记录？")) return;
-    try { await deleteRecord(id); onReload(); } catch (e) { setToast("删除失败: "+e); }
   }
 
   return (
@@ -47,7 +53,12 @@ export default function RecordPage({ records, recharges, members, onReload }: Pr
       {toast && <div className="toast" onClick={() => setToast("")}>{toast}</div>}
       <div className="page-header">
         <h2>📋 记录查询</h2>
-        <input className="input" placeholder="搜索会员姓名..." value={search} onChange={e => setSearch(e.target.value)} style={{width:220}} />
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+          <input className="input" placeholder="搜索会员姓名..." value={search} onChange={e => setSearch(e.target.value)} style={{width:180}} />
+          <input className="input" type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{width:140}} title="开始日期" />
+          <span style={{color:"var(--text-secondary)",fontSize:"var(--font-size-sm)"}}>至</span>
+          <input className="input" type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{width:140}} title="结束日期" />
+        </div>
       </div>
 
       <div className="tab-bar">
@@ -61,17 +72,18 @@ export default function RecordPage({ records, recharges, members, onReload }: Pr
           <h3>消费记录 ({filteredRecords.length})</h3>
           <div className="table-scroll">
             <table className="table">
-              <thead><tr><th>时间</th><th>会员</th><th>服务</th><th>金额</th><th>支付</th><th>备注</th><th>操作</th></tr></thead>
+              <thead><tr><th>时间</th><th>会员</th><th>服务</th><th>原价</th><th>折扣</th><th>实付</th><th>支付</th><th>备注</th></tr></thead>
               <tbody>
                 {filteredRecords.map(r => (
                   <tr key={r.id}>
                     <td className="date">{r.created_at?.slice(0,16)}</td>
                     <td>{r.member_name}</td>
                     <td>{r.service_name}</td>
+                    <td className="money">¥{(r.original_price||r.amount).toFixed(2)}</td>
+                    <td className="money">{r.discount_rate < 1 ? `${(r.discount_rate*100).toFixed(0)}%` : "-"}</td>
                     <td className="money">¥{r.amount.toFixed(2)}</td>
-                    <td><span className={`tag ${r.payment_method.includes("余额")?"tag-blue":"tag-green"}`}>{r.payment_method}</span></td>
+                    <td><span className={`tag ${r.payment_method==="余额"?"tag-blue":"tag-green"}`}>{r.payment_method}</span></td>
                     <td className="note">{r.note}</td>
-                    <td><button className="btn btn-sm btn-danger" onClick={() => doDelete(r.id)}>删除</button></td>
                   </tr>
                 ))}
               </tbody>

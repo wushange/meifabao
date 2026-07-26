@@ -15,14 +15,12 @@ export default function StatsPage({ members, records, recharges }: Props) {
     const todayRecharges = recharges.filter(r => new Date(r.created_at).toDateString() === today);
     const todayIncome = todayRecords.reduce((s, r) => s + r.amount, 0);
     const todayRechargeTotal = todayRecharges.reduce((s, r) => s + r.amount, 0);
-    // 储值总额 = 所有会员当前余额之和（即导入表格"储值金额"列的汇总）
+    // 储值总额 = 所有会员当前余额之和
     const totalBalance = members.reduce((s, m) => s + m.balance, 0);
-    // 累计消费总额 = 所有会员 total_spent 之和
+    // 累计消费总额（members.total_spent 包含导入数据 + 后续结账更新）
     const totalSpent = members.reduce((s, m) => s + m.total_spent, 0);
-
-    // 等级分布
-    const levelDist: Record<string, number> = {};
-    members.forEach(m => { levelDist[m.level] = (levelDist[m.level] || 0) + 1; });
+    // 累计充值总额
+    const totalRecharged = recharges.reduce((s, r) => s + r.amount, 0);
 
     // 近7天趋势
     const last7Days: { date: string; income: number; count: number }[] = [];
@@ -47,7 +45,7 @@ export default function StatsPage({ members, records, recharges }: Props) {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5);
 
-    return { todayRecords, todayIncome, todayRechargeTotal, totalBalance, totalSpent, levelDist, last7Days, topServices };
+    return { todayRecords, todayIncome, todayRechargeTotal, totalBalance, totalSpent, totalRecharged, last7Days, topServices };
   }, [members, records, recharges]);
 
   return (
@@ -82,31 +80,16 @@ export default function StatsPage({ members, records, recharges }: Props) {
           <div className="stat-label">💳 今日充值</div>
         </div>
         <div className="stat-card">
+          <div className="stat-value">¥{stats.totalRecharged.toFixed(0)}</div>
+          <div className="stat-label">💳 累计充值</div>
+        </div>
+        <div className="stat-card">
           <div className="stat-value">{records.length}</div>
           <div className="stat-label">📋 累计消费笔数</div>
         </div>
       </div>
 
       <div className="stats-row">
-        {/* 等级分布 */}
-        <div className="stats-panel">
-          <h3>🏅 会员等级分布</h3>
-          <div className="level-bars">
-            {Object.entries(stats.levelDist).map(([lv, count]) => (
-              <div key={lv} className="level-bar-row">
-                <span className={`level-tag level-${lv}`}>{lv}</span>
-                <div className="level-bar-track">
-                  <div className="level-bar-fill" style={{width: `${members.length ? (count/members.length*100) : 0}%`}} />
-                </div>
-                <span className="level-bar-count">{count}人</span>
-              </div>
-            ))}
-            {Object.keys(stats.levelDist).length === 0 && (
-              <div className="empty-state" style={{padding:"20px 0"}}>暂无数据</div>
-            )}
-          </div>
-        </div>
-
         {/* 近7天趋势 */}
         <div className="stats-panel">
           <h3>📈 近7天收入趋势</h3>
