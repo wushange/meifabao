@@ -29,6 +29,7 @@
   "bundle": {
     "active": true,
     "targets": ["nsis", "dmg"],
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -43,6 +44,17 @@
       "nsis": {
         "installMode": "currentUser",
         "installerIcon": "icons/icon.ico"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENBRTUxRUFGQjhGNTcyMDYKUldRR2N2VzRyeDdseWk2TzVpTm1VOHNUTUxuVDlGazNJbHViQmpnZ2tlMWIva00vY3ZTeHFQM3gK",
+      "endpoints": [
+        "https://github.com/wushange/meifabao/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
       }
     }
   }

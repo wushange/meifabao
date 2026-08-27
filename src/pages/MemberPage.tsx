@@ -3,6 +3,7 @@ import {
   MemberFull, addMember, updateMember, deleteMember,
   recharge,
 } from "../db";
+import { UsersIcon } from "../components/Icons";
 
 interface Props {
   members: MemberFull[];
@@ -89,7 +90,7 @@ export default function MemberPage({ members, onReload }: Props) {
       {toast && <div className="toast" onClick={() => setToast("")}>{toast}</div>}
 
       <div className="page-header">
-        <h2>👥 会员管理 <span style={{fontSize:"var(--font-size-sm)",fontWeight:500,color:"var(--text-secondary)",background:"var(--border-light)",padding:"2px 10px",borderRadius:"20px",marginLeft:"4px"}}>{members.length}</span></h2>
+        <h2><UsersIcon size={20} /> 会员管理 <span style={{fontSize:"var(--font-size-sm)",fontWeight:500,color:"var(--text-secondary)",background:"var(--border-light)",padding:"2px 10px",borderRadius:"20px",marginLeft:"4px"}}>{members.length}</span></h2>
         <div className="page-actions">
           <input className="input" placeholder="搜索姓名 / 手机号..." value={search} onChange={e => setSearch(e.target.value)} style={{width:220}} />
           <button className="btn btn-primary" onClick={openAdd}>+ 新增会员</button>
@@ -100,7 +101,7 @@ export default function MemberPage({ members, onReload }: Props) {
         <div className="table-scroll">
           <table className="table" style={{marginBottom:0}}>
             <thead>
-              <tr><th>姓名</th><th>手机号</th><th>余额</th><th>累计消费</th><th>备注</th><th>注册时间</th><th>操作</th></tr>
+              <tr><th>姓名</th><th>手机号</th><th>余额</th><th>累计消费</th><th>最近消费</th><th>备注</th><th>注册时间</th><th>操作</th></tr>
             </thead>
             <tbody>
               {paged.map(m => (
@@ -109,6 +110,7 @@ export default function MemberPage({ members, onReload }: Props) {
                   <td>{m.phone}</td>
                   <td className="money">¥{m.balance.toFixed(2)}</td>
                   <td className="money">¥{(m.total_spent||0).toFixed(2)}</td>
+                  <td className="date">{m.last_visit ? m.last_visit.slice(0,10) : "暂无"}</td>
                   <td className="note">{m.note}</td>
                   <td className="date">{m.created_at?.slice(0,10)}</td>
                   <td className="actions">

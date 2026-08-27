@@ -45,8 +45,6 @@ pub fn init_db(db_path: &Path) -> rusqlite::Result<()> {
             member_name TEXT NOT NULL,
             service_name TEXT NOT NULL,
             amount REAL NOT NULL,
-            original_price REAL NOT NULL DEFAULT 0,
-            discount_rate REAL NOT NULL DEFAULT 1.0,
             payment_method TEXT NOT NULL,
             note TEXT DEFAULT '',
             created_at TEXT DEFAULT (datetime('now','localtime')),
@@ -57,8 +55,6 @@ pub fn init_db(db_path: &Path) -> rusqlite::Result<()> {
 
     // 兼容旧库：加列
     let _ = conn.execute("ALTER TABLE records ADD COLUMN order_id INTEGER NOT NULL DEFAULT 0", ());
-    let _ = conn.execute("ALTER TABLE records ADD COLUMN original_price REAL NOT NULL DEFAULT 0", ());
-    let _ = conn.execute("ALTER TABLE records ADD COLUMN discount_rate REAL NOT NULL DEFAULT 1.0", ());
 
     // 充值记录表
     conn.execute(

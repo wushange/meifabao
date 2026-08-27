@@ -3,10 +3,15 @@ import * as XLSX from "xlsx";
 import {
   exportAllData, clearAllData, batchImportMembers,
   BackupConfig, getBackupConfig, saveBackupConfig, manualBackup,
+  listBackups, revealBackup, BackupFileInfo,
 } from "../db";
+import CustomSelect from "../components/CustomSelect";
+import { GearIcon, FolderIcon, SpeakerIcon, PaletteIcon, ImportIcon, ExportIcon, TrashIcon, SaveIcon, AlertIcon } from "../components/Icons";
+import { useAppVersion } from "../hooks/useAppVersion";
 
 interface Props {
   onReload: () => void;
+  onCheckUpdate: () => void;
 }
 
 function VoiceToggle() {
@@ -50,7 +55,8 @@ function ThemePicker() {
   );
 }
 
-export default function SettingsPage({ onReload }: Props) {
+export default function SettingsPage({ onReload, onCheckUpdate }: Props) {
+  const version = useAppVersion();
   const [toast, setToast] = useState("");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
@@ -58,17 +64,38 @@ export default function SettingsPage({ onReload }: Props) {
   const [backupConfig, setBackupConfig] = useState<BackupConfig>({ backup_dir: "", backup_keep_days: 30, backup_hour: 2 });
   const [backupSaving, setBackupSaving] = useState(false);
   const [backupRunning, setBackupRunning] = useState(false);
+  const [backupFiles, setBackupFiles] = useState<BackupFileInfo[]>([]);
+
+  async function loadBackups() {
+    try { setBackupFiles(await listBackups()); } catch {}
+  }
+
+  function formatSize(bytes: number) {
+    if (bytes < 1024) return bytes + " B";
+    return (bytes / 1024).toFixed(1) + " KB";
+  }
+
+  async function doReveal(path: string) {
+    try { await revealBackup(path); } catch (e) { setToast("无法打开文件目录: " + e); }
+  }
 
   useEffect(() => { if (toast) { const t = setTimeout(() => setToast(""), 3000); return () => clearTimeout(t); } }, [toast]);
   useEffect(() => {
     getBackupConfig().then(setBackupConfig).catch(() => {});
+  }, []);
+  // 加载备份文件列表，每 30 秒刷新（应用常开时也能看到新备份）
+  useEffect(() => {
+    loadBackups();
+    const t = setInterval(loadBackups, 30000);
+    return () => clearInterval(t);
   }, []);
 
   async function handleSaveBackupConfig() {
     setBackupSaving(true);
     try {
       await saveBackupConfig(backupConfig);
-      setToast("✅ 备份配置已保存");
+      setToast("备份配置已保存");
+      loadBackups();
     } catch (e) { setToast("保存失败: " + e); }
     finally { setBackupSaving(false); }
   }
@@ -77,7 +104,8 @@ export default function SettingsPage({ onReload }: Props) {
     setBackupRunning(true);
     try {
       const r = await manualBackup();
-      setToast("✅ " + r.message);
+      setToast(r.message);
+      loadBackups();
     } catch (e) { setToast("备份失败: " + e); }
     finally { setBackupRunning(false); }
   }
@@ -192,16 +220,16 @@ export default function SettingsPage({ onReload }: Props) {
     <div className="page">
       {toast && <div className="toast" onClick={() => setToast("")}>{toast}</div>}
       <div className="page-header">
-        <h2>⚙️ 系统设置</h2>
+        <h2><GearIcon size={20} /> 系统设置</h2>
       </div>
 
       <div className="settings-section">
         <h3>数据管理</h3>
         <p className="section-desc">导入、导出或清空所有数据</p>
         <div className="settings-actions">
-          <button className="btn btn-outline" onClick={() => { setShowImport(true); setImportStep("upload"); }}>📥 导入 Excel</button>
-          <button className="btn btn-primary" onClick={handleExport}>📤 导出备份</button>
-          <button className="btn btn-danger" onClick={handleClear}>🗑 清空数据</button>
+          <button className="btn btn-outline" onClick={() => { setShowImport(true); setImportStep("upload"); }}><ImportIcon size={15} /> 导入 Excel</button>
+          <button className="btn btn-primary" onClick={handleExport}><ExportIcon size={15} /> 导出备份</button>
+          <button className="btn btn-danger" onClick={handleClear}><TrashIcon size={15} /> 清空数据</button>
         </div>
         <p className="hint">导入：支持 .xlsx/.xls 文件，首次使用时可批量导入会员。备份为 JSON 格式，清空前请先备份。</p>
       </div>
@@ -210,7 +238,7 @@ export default function SettingsPage({ onReload }: Props) {
       {showImport && (
         <div className="modal-overlay" onClick={() => setShowImport(false)}>
           <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
-            <h3>📥 导入会员</h3>
+            <h3 style={{display:"flex",alignItems:"center",gap:8}}><ImportIcon size={18} /> 导入会员</h3>
             {importStep === "upload" && (
               <div>
                 <p>请选择 .xlsx 或 .xls 文件，将自动识别列名</p>
@@ -223,10 +251,11 @@ export default function SettingsPage({ onReload }: Props) {
                 {(["name","phone","level","balance","note","totalSpent"] as const).map(f => (
                   <div key={f} className="form-row">
                     <label>{f==="name"?"姓名":f==="phone"?"手机号":f==="level"?"等级":f==="balance"?"余额":f==="note"?"备注":"储值金额"}</label>
-                    <select className="input" value={importMapping[f]} onChange={e => setImportMapping({...importMapping, [f]: e.target.value})}>
-                      <option value="">不映射</option>
-                      {Object.keys(importData[0]||{}).map(col => <option key={col} value={col}>{col}</option>)}
-                    </select>
+                    <CustomSelect
+                      value={importMapping[f]}
+                      onChange={v => setImportMapping({...importMapping, [f]: v})}
+                      options={[{ value: "", label: "不映射" }, ...Object.keys(importData[0]||{}).map(col => ({ value: col, label: col }))]}
+                    />
                   </div>
                 ))}
                 <button className="btn btn-primary" onClick={previewImport}>预览</button>
@@ -245,7 +274,7 @@ export default function SettingsPage({ onReload }: Props) {
             )}
             {importStep === "result" && importResult && (
               <div>
-                <p>✅ 导入完成！成功 {importResult.ok} 条，跳过 {importResult.skip} 条（重复）</p>
+                <p>导入完成！成功 {importResult.ok} 条，跳过 {importResult.skip} 条（重复）</p>
                 <button className="btn btn-primary" onClick={() => setShowImport(false)}>关闭</button>
               </div>
             )}
@@ -254,7 +283,7 @@ export default function SettingsPage({ onReload }: Props) {
       )}
 
       <div className="settings-section">
-        <h3>🗂️ 自动备份</h3>
+        <h3 style={{display:"flex",alignItems:"center",gap:8}}><FolderIcon size={16} /> 自动备份</h3>
         <p className="section-desc">每次启动应用时自动检查并备份会员数据为 .xlsx 文件</p>
 
         <div className="backup-config">
@@ -299,17 +328,52 @@ export default function SettingsPage({ onReload }: Props) {
 
         <div className="settings-actions" style={{marginTop:14}}>
           <button className="btn btn-primary" onClick={handleSaveBackupConfig} disabled={backupSaving}>
-            {backupSaving ? "保存中..." : "💾 保存配置"}
+            {backupSaving ? "保存中..." : <><SaveIcon size={15} /> 保存配置</>}
           </button>
           <button className="btn btn-outline" onClick={handleManualBackup} disabled={backupRunning}>
-            {backupRunning ? "备份中..." : "📦 立即备份"}
+            {backupRunning ? "备份中..." : <><FolderIcon size={15} /> 立即备份</>}
           </button>
         </div>
-        <p className="hint">备份格式为 .xlsx，文件名格式：members_YYYY-MM-DD.xlsx。手动备份文件名会加时间戳。</p>
+
+        {/* 已有备份列表 */}
+        <div style={{marginTop:16}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,fontSize:"var(--font-size-sm)",fontWeight:600,color:"var(--text-secondary)",marginBottom:8}}>
+            <FolderIcon size={15} /> 已有备份（{backupFiles.length}）
+          </div>
+          {backupFiles.length === 0 ? (
+            <div className="empty-state" style={{padding:"16px 0",fontSize:"var(--font-size-sm)"}}>暂无备份文件</div>
+          ) : (
+            <div style={{border:"1px solid var(--border-light)",borderRadius:10,overflow:"hidden"}}>
+              {backupFiles.map((f, i) => (
+                <div
+                  key={f.path}
+                  onClick={() => doReveal(f.path)}
+                  title="点击在文件管理器中定位"
+                  onMouseEnter={e => { e.currentTarget.style.background = "var(--gold-lighter)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "var(--card)"; }}
+                  style={{
+                    display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,
+                    padding:"9px 13px",
+                    borderBottom: i < backupFiles.length - 1 ? "1px solid var(--border-light)" : "none",
+                    cursor:"pointer",background:"var(--card)",fontSize:"var(--font-size-sm)",
+                  }}
+                >
+                  <span style={{fontWeight:500,color:"var(--text)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</span>
+                  <span style={{display:"flex",alignItems:"center",gap:12,flexShrink:0,color:"var(--text-secondary)"}}>
+                    <span>{f.modified}</span>
+                    <span style={{fontVariantNumeric:"tabular-nums"}}>{formatSize(f.size)}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <p className="hint">备份格式为 .xlsx，每日备份如 backup_2026-08-27.xlsx，手动备份带时间戳。点击文件可在文件管理器中定位。</p>
       </div>
 
       <div className="settings-section">
-        <h3>🔊 语音播报</h3>
+        <h3 style={{display:"flex",alignItems:"center",gap:8}}><SpeakerIcon size={16} /> 语音播报</h3>
         <p className="section-desc">结账成功时语音播报，可自定义模板</p>
         <VoiceToggle />
         <div style={{marginTop:12}}>
@@ -324,20 +388,23 @@ export default function SettingsPage({ onReload }: Props) {
       </div>
 
       <div className="settings-section">
-        <h3>🎨 主题配色</h3>
+        <h3 style={{display:"flex",alignItems:"center",gap:8}}><PaletteIcon size={16} /> 主题配色</h3>
         <p className="section-desc">选择界面配色方案，即时生效</p>
         <ThemePicker />
       </div>
 
-      <div className="settings-section" style={{textAlign:"center",opacity:.6}}>
-        <p style={{fontSize:"var(--font-size-sm)",color:"var(--text-tertiary)"}}>小凤美发管理系统 · v0.1.0</p>
+      <div className="settings-section" style={{textAlign:"center"}}>
+        <div style={{display:"flex",justifyContent:"center",gap:10,alignItems:"center",marginBottom:8}}>
+          <button className="btn btn-sm btn-outline" onClick={onCheckUpdate}>检查更新</button>
+        </div>
+        <p style={{fontSize:"var(--font-size-sm)",color:"var(--text-tertiary)"}}>小凤美发管理系统 · {version && `v${version}`}</p>
       </div>
 
       {/* 清空确认弹窗 */}
       {showClearConfirm && (
         <div className="modal-overlay" onClick={() => setShowClearConfirm(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <h3>⚠️ 确认清空数据</h3>
+            <h3 style={{display:"flex",alignItems:"center",gap:8}}><AlertIcon size={18} /> 确认清空数据</h3>
             <p style={{margin:"12px 0",color:"var(--danger)"}}>将清空所有会员和消费记录，此操作不可恢复！</p>
             <p style={{marginBottom:16,color:"var(--text-secondary)",fontSize:"var(--font-size-sm)"}}>建议先导出备份</p>
             <div className="modal-actions">

@@ -1,14 +1,16 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import {
   searchMembers, getServices, checkout,
-  MemberFull, ServiceItem, CheckoutReceipt,
+  MemberFull, ServiceItem, RecordItem, CheckoutReceipt,
 } from "../db";
+import { ReceiptIcon } from "../components/Icons";
 
 interface Props {
+  records: RecordItem[];
   onReload: () => void;
 }
 
-export default function CheckoutPage({ onReload }: Props) {
+export default function CheckoutPage({ records, onReload }: Props) {
   const [keyword, setKeyword] = useState("");
   const [results, setResults] = useState<MemberFull[]>([]);
   const [searched, setSearched] = useState(false);
@@ -52,7 +54,13 @@ export default function CheckoutPage({ onReload }: Props) {
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!keyword.trim()) { setResults([]); setSearched(false); return; }
+    if (!keyword.trim()) {
+      setResults([]);
+      setSearched(false);
+      setSelected(null);
+      setCartItems([]);
+      return;
+    }
     debounceRef.current = setTimeout(() => doSearch(), 300);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [keyword]);
@@ -61,6 +69,14 @@ export default function CheckoutPage({ onReload }: Props) {
   useEffect(() => { if (toast) { const t = setTimeout(() => setToast(""), 3000); return () => clearTimeout(t); } }, [toast]);
 
   const total = cartItems.reduce((s, i) => s + i.price, 0);
+
+  // 今日消费（默认展示）
+  const today = new Date().toDateString();
+  const todayRecords = useMemo(
+    () => records.filter(r => new Date(r.created_at).toDateString() === today),
+    [records, today]
+  );
+  const todayIncome = todayRecords.reduce((s, r) => s + r.amount, 0);
 
   async function doSearch() {
     if (!keyword.trim()) return;
@@ -129,7 +145,7 @@ export default function CheckoutPage({ onReload }: Props) {
     return (
       <div className="receipt-overlay" onClick={() => setReceipt(null)}>
         <div className="receipt-card" onClick={e => e.stopPropagation()}>
-          <div className="receipt-title">🧾 消费小票</div>
+          <div className="receipt-title"><ReceiptIcon size={18} /> 消费小票</div>
           <div className="receipt-body">
             <div className="receipt-row"><span>会员</span><span>{receipt.member_name}</span></div>
             {receipt.services.map((s, i) => (
@@ -165,6 +181,35 @@ export default function CheckoutPage({ onReload }: Props) {
         />
         {searching && <span style={{fontSize:"var(--font-size-sm)",color:"var(--text-secondary)"}}>搜索中...</span>}
       </div>
+
+      {/* 今日消费（默认展示） */}
+      {!keyword.trim() && !selected && (
+        <div className="table-wrap" style={{margin:"16px 20px 0",flex:"1 1 auto",minHeight:0}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 18px",borderBottom:"1px solid var(--border-light)",flexShrink:0}}>
+            <h3 style={{margin:0,padding:0,border:"none",background:"transparent"}}>今日消费</h3>
+            <span style={{fontSize:"var(--font-size-sm)",color:"var(--text-secondary)"}}>
+              {todayRecords.length} 笔 · 收入 <strong style={{color:"var(--gold-dark)"}}>¥{todayIncome.toFixed(2)}</strong>
+            </span>
+          </div>
+          <div className="table-scroll">
+            <table className="table">
+              <thead><tr><th>会员</th><th>服务</th><th>实付</th><th>支付</th><th>时间</th></tr></thead>
+              <tbody>
+                {todayRecords.map(r => (
+                  <tr key={r.id}>
+                    <td>{r.member_name}</td>
+                    <td>{r.service_name}</td>
+                    <td className="money">¥{r.amount.toFixed(2)}</td>
+                    <td><span className={`tag ${r.payment_method==="余额"?"tag-blue":"tag-green"}`}>{r.payment_method}</span></td>
+                    <td className="date">{r.created_at?.slice(0,16)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {todayRecords.length === 0 && <div className="empty-state" style={{padding:"30px 0"}}>今日暂无消费</div>}
+          </div>
+        </div>
+      )}
 
       {/* 搜索结果 */}
       {searched && results.length === 0 && (

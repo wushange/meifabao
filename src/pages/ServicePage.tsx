@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { ServiceItem, addService, updateService, deleteService } from "../db";
+import CustomSelect from "../components/CustomSelect";
+import { ScissorsIcon } from "../components/Icons";
 
 interface Props {
   services: ServiceItem[];
@@ -52,7 +54,7 @@ export default function ServicePage({ services, onReload }: Props) {
     <div className="page">
       {toast && <div className="toast" onClick={() => setToast("")}>{toast}</div>}
       <div className="page-header">
-        <h2>✂️ 服务管理</h2>
+        <h2><ScissorsIcon size={20} /> 服务管理</h2>
         <button className="btn btn-primary" onClick={openAdd}>+ 新增服务</button>
       </div>
 
@@ -84,10 +86,11 @@ export default function ServicePage({ services, onReload }: Props) {
             <label>价格</label>
             <input className="input" type="number" value={price} onChange={e => setPrice(e.target.value)} />
             <label>分类</label>
-            <select className="input" value={category} onChange={e => setCategory(e.target.value)}>
-              {categories.map(c => <option key={c}>{c}</option>)}
-              {!categories.includes(category) && <option>{category}</option>}
-            </select>
+            <CustomSelect
+              value={category}
+              onChange={setCategory}
+              options={categories.includes(category) ? categories : [...categories, category]}
+            />
             <div className="modal-actions">
               <button className="btn" onClick={() => setShowForm(false)}>取消</button>
               <button className="btn btn-primary" onClick={save} disabled={submitting}>{submitting?"保存中...":"保存"}</button>

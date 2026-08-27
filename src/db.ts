@@ -28,8 +28,6 @@ export interface RecordItem {
   service_id: number;
   service_name: string;
   amount: number;
-  original_price: number;
-  discount_rate: number;
   payment_method: string;
   note: string;
   created_at: string;
@@ -158,6 +156,21 @@ export async function dailyBackup(): Promise<DailyBackupResult> {
 
 export async function manualBackup(): Promise<DailyBackupResult> {
   return await invoke<DailyBackupResult>("manual_backup");
+}
+
+export interface BackupFileInfo {
+  name: string;
+  path: string;
+  size: number;
+  modified: string;
+}
+
+export async function listBackups(): Promise<BackupFileInfo[]> {
+  return await invoke<BackupFileInfo[]>("list_backups");
+}
+
+export async function revealBackup(path: string): Promise<void> {
+  await invoke("reveal_backup", { path });
 }
 
 export async function getBackupConfig(): Promise<BackupConfig> {

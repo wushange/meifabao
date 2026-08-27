@@ -10,6 +10,7 @@ use commands::*;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             get_members,
             search_members,
@@ -30,6 +31,8 @@ pub fn run() {
             clear_all_data,
             daily_backup,
             manual_backup,
+            list_backups,
+            reveal_backup,
             get_backup_config,
             save_backup_config,
         ])

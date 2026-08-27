@@ -1,13 +1,19 @@
-name: Build Windows EXE
+name: Release
+
+# 打 tag 推送（如 v0.2.0）或在 Actions 手动触发时，构建 Windows 安装包并发布 GitHub Release。
+# 发布后应用内 OTA 会自动从最新 Release 的 latest.json 检查并更新。
 
 on:
   push:
-    branches: [main]
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 jobs:
-  build:
+  release:
     runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -33,20 +39,14 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
 
-      - name: Build Tauri (Windows NSIS)
-        run: npx tauri build
+      - uses: tauri-apps/tauri-action@v1
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-
-      - name: Upload installer
-        uses: actions/upload-artifact@v4
         with:
-          name: xiaofeng-hair-windows-installer
-          path: src-tauri/target/release/bundle/nsis/*.exe
-
-      - name: Upload portable
-        uses: actions/upload-artifact@v4
-        with:
-          name: xiaofeng-hair-windows-portable
-          path: src-tauri/target/release/xiaofeng-hair.exe
+          tagName: v__VERSION__
+          releaseName: v__VERSION__
+          releaseBody: 小凤美发新版本，下载安装后覆盖更新即可。
+          releaseDraft: false
+          prerelease: false

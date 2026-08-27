@@ -45,8 +45,6 @@ pub struct Record {
     pub service_id: i32,
     pub service_name: String,
     pub amount: f64,
-    pub original_price: f64,
-    pub discount_rate: f64,
     pub payment_method: String,
     pub note: String,
     pub created_at: String,
@@ -249,30 +247,28 @@ pub fn get_records(db_path: tauri::State<PathBuf>, member_id: Option<i32>, limit
         if let Some(lim) = limit {
             let mut stmt = c.prepare(
                 "SELECT r.id, COALESCE(r.order_id,0), r.member_id, r.member_name, COALESCE(r.service_id,0), r.service_name, r.amount,
-                        COALESCE(r.original_price,0), COALESCE(r.discount_rate,1.0), r.payment_method, COALESCE(r.note,''), r.created_at
+                        r.payment_method, COALESCE(r.note,''), r.created_at
                  FROM records r WHERE r.member_id=?1 ORDER BY r.created_at DESC LIMIT ?2"
             ).map_err(|e| e.to_string())?;
             let rows = stmt.query_map(rusqlite::params![mid, lim], |row| {
                 Ok(Record {
                     id: row.get(0)?, order_id: row.get(1)?, member_id: row.get(2)?, member_name: row.get(3)?,
                     service_id: row.get(4)?, service_name: row.get(5)?, amount: row.get(6)?,
-                    original_price: row.get(7)?, discount_rate: row.get(8)?,
-                    payment_method: row.get(9)?, note: row.get(10)?, created_at: row.get(11)?,
+                    payment_method: row.get(7)?, note: row.get(8)?, created_at: row.get(9)?,
                 })
             }).map_err(|e| e.to_string())?;
             rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
         } else {
             let mut stmt = c.prepare(
                 "SELECT r.id, COALESCE(r.order_id,0), r.member_id, r.member_name, COALESCE(r.service_id,0), r.service_name, r.amount,
-                        COALESCE(r.original_price,0), COALESCE(r.discount_rate,1.0), r.payment_method, COALESCE(r.note,''), r.created_at
+                        r.payment_method, COALESCE(r.note,''), r.created_at
                  FROM records r WHERE r.member_id=?1 ORDER BY r.created_at DESC"
             ).map_err(|e| e.to_string())?;
             let rows = stmt.query_map(rusqlite::params![mid], |row| {
                 Ok(Record {
                     id: row.get(0)?, order_id: row.get(1)?, member_id: row.get(2)?, member_name: row.get(3)?,
                     service_id: row.get(4)?, service_name: row.get(5)?, amount: row.get(6)?,
-                    original_price: row.get(7)?, discount_rate: row.get(8)?,
-                    payment_method: row.get(9)?, note: row.get(10)?, created_at: row.get(11)?,
+                    payment_method: row.get(7)?, note: row.get(8)?, created_at: row.get(9)?,
                 })
             }).map_err(|e| e.to_string())?;
             rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
@@ -281,30 +277,28 @@ pub fn get_records(db_path: tauri::State<PathBuf>, member_id: Option<i32>, limit
         if let Some(lim) = limit {
             let mut stmt = c.prepare(
                 "SELECT r.id, COALESCE(r.order_id,0), r.member_id, r.member_name, COALESCE(r.service_id,0), r.service_name, r.amount,
-                        COALESCE(r.original_price,0), COALESCE(r.discount_rate,1.0), r.payment_method, COALESCE(r.note,''), r.created_at
+                        r.payment_method, COALESCE(r.note,''), r.created_at
                  FROM records r ORDER BY r.created_at DESC LIMIT ?1"
             ).map_err(|e| e.to_string())?;
             let rows = stmt.query_map([lim], |row| {
                 Ok(Record {
                     id: row.get(0)?, order_id: row.get(1)?, member_id: row.get(2)?, member_name: row.get(3)?,
                     service_id: row.get(4)?, service_name: row.get(5)?, amount: row.get(6)?,
-                    original_price: row.get(7)?, discount_rate: row.get(8)?,
-                    payment_method: row.get(9)?, note: row.get(10)?, created_at: row.get(11)?,
+                    payment_method: row.get(7)?, note: row.get(8)?, created_at: row.get(9)?,
                 })
             }).map_err(|e| e.to_string())?;
             rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
         } else {
             let mut stmt = c.prepare(
                 "SELECT r.id, COALESCE(r.order_id,0), r.member_id, r.member_name, COALESCE(r.service_id,0), r.service_name, r.amount,
-                        COALESCE(r.original_price,0), COALESCE(r.discount_rate,1.0), r.payment_method, COALESCE(r.note,''), r.created_at
+                        r.payment_method, COALESCE(r.note,''), r.created_at
                  FROM records r ORDER BY r.created_at DESC"
             ).map_err(|e| e.to_string())?;
             let rows = stmt.query_map([], |row| {
                 Ok(Record {
                     id: row.get(0)?, order_id: row.get(1)?, member_id: row.get(2)?, member_name: row.get(3)?,
                     service_id: row.get(4)?, service_name: row.get(5)?, amount: row.get(6)?,
-                    original_price: row.get(7)?, discount_rate: row.get(8)?,
-                    payment_method: row.get(9)?, note: row.get(10)?, created_at: row.get(11)?,
+                    payment_method: row.get(7)?, note: row.get(8)?, created_at: row.get(9)?,
                 })
             }).map_err(|e| e.to_string())?;
             rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
@@ -365,9 +359,9 @@ pub fn checkout(
             total += sprice;
 
             c.execute(
-                "INSERT INTO records (order_id, member_id, service_id, member_name, service_name, amount, original_price, discount_rate, payment_method, note)
-                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
-                rusqlite::params![order_id, member_id, sid, member_name, sname, sprice, sprice, 1.0, payment_method, note],
+                "INSERT INTO records (order_id, member_id, service_id, member_name, service_name, amount, payment_method, note)
+                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
+                rusqlite::params![order_id, member_id, sid, member_name, sname, sprice, payment_method, note],
             ).map_err(|e| e.to_string())?;
         }
 
@@ -377,9 +371,9 @@ pub fn checkout(
             total += cs.price;
 
             c.execute(
-                "INSERT INTO records (order_id, member_id, service_id, member_name, service_name, amount, original_price, discount_rate, payment_method, note)
-                 VALUES (?1,?2,0,?3,?4,?5,?6,?7,?8,?9)",
-                rusqlite::params![order_id, member_id, member_name, cs.name, cs.price, cs.price, 1.0, payment_method, note],
+                "INSERT INTO records (order_id, member_id, service_id, member_name, service_name, amount, payment_method, note)
+                 VALUES (?1,?2,0,?3,?4,?5,?6,?7)",
+                rusqlite::params![order_id, member_id, member_name, cs.name, cs.price, payment_method, note],
             ).map_err(|e| e.to_string())?;
         }
 
@@ -531,27 +525,25 @@ fn get_records_impl(c: &Connection, member_id: Option<i32>, limit: Option<i32>) 
         if let Some(lim) = limit {
             let mut stmt = c.prepare(
                 "SELECT id,COALESCE(order_id,0),member_id,member_name,COALESCE(service_id,0),service_name,amount,
-                        COALESCE(original_price,0),COALESCE(discount_rate,1.0),payment_method,COALESCE(note,''),created_at
+                        payment_method,COALESCE(note,''),created_at
                  FROM records WHERE member_id=?1 ORDER BY created_at DESC LIMIT ?2"
             ).map_err(|e| e.to_string())?;
             let rows = stmt.query_map(rusqlite::params![mid, lim], |row| {
                 Ok(Record { id: row.get(0)?, order_id: row.get(1)?, member_id: row.get(2)?, member_name: row.get(3)?,
                     service_id: row.get(4)?, service_name: row.get(5)?, amount: row.get(6)?,
-                    original_price: row.get(7)?, discount_rate: row.get(8)?,
-                    payment_method: row.get(9)?, note: row.get(10)?, created_at: row.get(11)? })
+                    payment_method: row.get(7)?, note: row.get(8)?, created_at: row.get(9)? })
             }).map_err(|e| e.to_string())?;
             rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
         } else {
             let mut stmt = c.prepare(
                 "SELECT id,COALESCE(order_id,0),member_id,member_name,COALESCE(service_id,0),service_name,amount,
-                        COALESCE(original_price,0),COALESCE(discount_rate,1.0),payment_method,COALESCE(note,''),created_at
+                        payment_method,COALESCE(note,''),created_at
                  FROM records WHERE member_id=?1 ORDER BY created_at DESC"
             ).map_err(|e| e.to_string())?;
             let rows = stmt.query_map(rusqlite::params![mid], |row| {
                 Ok(Record { id: row.get(0)?, order_id: row.get(1)?, member_id: row.get(2)?, member_name: row.get(3)?,
                     service_id: row.get(4)?, service_name: row.get(5)?, amount: row.get(6)?,
-                    original_price: row.get(7)?, discount_rate: row.get(8)?,
-                    payment_method: row.get(9)?, note: row.get(10)?, created_at: row.get(11)? })
+                    payment_method: row.get(7)?, note: row.get(8)?, created_at: row.get(9)? })
             }).map_err(|e| e.to_string())?;
             rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
         }
@@ -559,27 +551,25 @@ fn get_records_impl(c: &Connection, member_id: Option<i32>, limit: Option<i32>) 
         if let Some(lim) = limit {
             let mut stmt = c.prepare(
                 "SELECT id,COALESCE(order_id,0),member_id,member_name,COALESCE(service_id,0),service_name,amount,
-                        COALESCE(original_price,0),COALESCE(discount_rate,1.0),payment_method,COALESCE(note,''),created_at
+                        payment_method,COALESCE(note,''),created_at
                  FROM records ORDER BY created_at DESC LIMIT ?1"
             ).map_err(|e| e.to_string())?;
             let rows = stmt.query_map([lim], |row| {
                 Ok(Record { id: row.get(0)?, order_id: row.get(1)?, member_id: row.get(2)?, member_name: row.get(3)?,
                     service_id: row.get(4)?, service_name: row.get(5)?, amount: row.get(6)?,
-                    original_price: row.get(7)?, discount_rate: row.get(8)?,
-                    payment_method: row.get(9)?, note: row.get(10)?, created_at: row.get(11)? })
+                    payment_method: row.get(7)?, note: row.get(8)?, created_at: row.get(9)? })
             }).map_err(|e| e.to_string())?;
             rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
         } else {
             let mut stmt = c.prepare(
                 "SELECT id,COALESCE(order_id,0),member_id,member_name,COALESCE(service_id,0),service_name,amount,
-                        COALESCE(original_price,0),COALESCE(discount_rate,1.0),payment_method,COALESCE(note,''),created_at
+                        payment_method,COALESCE(note,''),created_at
                  FROM records ORDER BY created_at DESC"
             ).map_err(|e| e.to_string())?;
             let rows = stmt.query_map([], |row| {
                 Ok(Record { id: row.get(0)?, order_id: row.get(1)?, member_id: row.get(2)?, member_name: row.get(3)?,
                     service_id: row.get(4)?, service_name: row.get(5)?, amount: row.get(6)?,
-                    original_price: row.get(7)?, discount_rate: row.get(8)?,
-                    payment_method: row.get(9)?, note: row.get(10)?, created_at: row.get(11)? })
+                    payment_method: row.get(7)?, note: row.get(8)?, created_at: row.get(9)? })
             }).map_err(|e| e.to_string())?;
             rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
         }
@@ -696,33 +686,31 @@ fn write_backup_xlsx(c: &Connection, filepath: &std::path::Path) -> Result<(usiz
     // ── 工作表2：消费记录 ──
     {
         let mut stmt = c.prepare(
-            "SELECT created_at, member_name, service_name, COALESCE(original_price,amount), COALESCE(discount_rate,1.0), amount, payment_method, COALESCE(note,'')
+            "SELECT created_at, member_name, service_name, amount, payment_method, COALESCE(note,'')
              FROM records ORDER BY created_at DESC"
         ).map_err(|e| e.to_string())?;
-        let rows: Vec<(String,String,String,f64,f64,f64,String,String)> = stmt.query_map([], |row| {
-            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?, row.get(7)?))
+        let rows: Vec<(String,String,String,f64,String,String)> = stmt.query_map([], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?))
         }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
         let _count = rows.len();
 
         let sheet = workbook.add_worksheet();
         sheet.set_name("消费记录").map_err(|e| e.to_string())?;
-        let headers = ["时间", "会员", "服务", "原价", "折扣率", "实付", "支付方式", "备注"];
-        let widths: [f64; 8] = [20.0, 12.0, 14.0, 10.0, 8.0, 10.0, 10.0, 20.0];
+        let headers = ["时间", "会员", "服务", "实付", "支付方式", "备注"];
+        let widths: [f64; 6] = [20.0, 12.0, 14.0, 10.0, 10.0, 20.0];
         for (i, h) in headers.iter().enumerate() {
             sheet.write_with_format(0, i as u16, *h, &header_fmt).map_err(|e| e.to_string())?;
             sheet.set_column_width(i as u16, widths[i]).map_err(|e| e.to_string())?;
         }
         sheet.set_row_height(0, 20.0).map_err(|e| e.to_string())?;
-        for (ri, (ca, mn, sn, op, dr, am, pm, nt)) in rows.iter().enumerate() {
+        for (ri, (ca, mn, sn, am, pm, nt)) in rows.iter().enumerate() {
             let r = (ri + 1) as u32;
             sheet.write(r, 0, ca.as_str()).map_err(|e| e.to_string())?;
             sheet.write(r, 1, mn.as_str()).map_err(|e| e.to_string())?;
             sheet.write(r, 2, sn.as_str()).map_err(|e| e.to_string())?;
-            sheet.write_with_format(r, 3, *op, &money_fmt).map_err(|e| e.to_string())?;
-            sheet.write(r, 4, &format!("{:.0}%", dr * 100.0)).map_err(|e| e.to_string())?;
-            sheet.write_with_format(r, 5, *am, &money_fmt).map_err(|e| e.to_string())?;
-            sheet.write(r, 6, pm.as_str()).map_err(|e| e.to_string())?;
-            sheet.write(r, 7, nt.as_str()).map_err(|e| e.to_string())?;
+            sheet.write_with_format(r, 3, *am, &money_fmt).map_err(|e| e.to_string())?;
+            sheet.write(r, 4, pm.as_str()).map_err(|e| e.to_string())?;
+            sheet.write(r, 5, nt.as_str()).map_err(|e| e.to_string())?;
         }
     }
 
@@ -764,6 +752,42 @@ fn write_backup_xlsx(c: &Connection, filepath: &std::path::Path) -> Result<(usiz
     Ok((count_m, count_r, count_rc))
 }
 
+/// 清理过期的每日备份（仅匹配 backup_YYYY-MM-DD.xlsx，手动备份不参与清理）
+fn cleanup_old_backups(backup_dir: &std::path::Path, keep_days: i64) -> Result<(), String> {
+    use std::fs;
+    use std::time::SystemTime;
+
+    let secs = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64 + 8 * 3600;
+    let (cy, cm, cd) = ymd_from_total_days((secs / 86400) as i32 - keep_days as i32);
+    let cutoff = format!("{:04}-{:02}-{:02}", cy, cm, cd);
+
+    if let Ok(entries) = fs::read_dir(backup_dir) {
+        for e in entries.filter_map(|e| e.ok()) {
+            let n = e.file_name().to_string_lossy().to_string();
+            if let Some(date) = daily_backup_date(&n) {
+                if date.as_str() < cutoff.as_str() {
+                    let _ = fs::remove_file(e.path());
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// 从每日备份文件名 backup_YYYY-MM-DD.xlsx 解析出日期字符串；非每日备份返回 None
+fn daily_backup_date(name: &str) -> Option<String> {
+    let s = name.strip_prefix("backup_")?;
+    let s = s.strip_suffix(".xlsx")?;
+    if s.len() == 10 && s.as_bytes()[4] == b'-' && s.as_bytes()[7] == b'-' {
+        Some(s.to_string())
+    } else {
+        None
+    }
+}
+
 #[tauri::command]
 pub fn daily_backup(db_path: tauri::State<PathBuf>, app_handle: tauri::AppHandle) -> Result<BackupResult, String> {
     use std::fs;
@@ -777,7 +801,7 @@ pub fn daily_backup(db_path: tauri::State<PathBuf>, app_handle: tauri::AppHandle
             .unwrap_or_else(|_| default.to_string())
     };
     let backup_dir_cfg = get_cfg("backup_dir", "");
-    let keep_days: usize = get_cfg("backup_keep_days", "30").parse().unwrap_or(30);
+    let keep_days: i64 = get_cfg("backup_keep_days", "30").parse().unwrap_or(30);
     let backup_hour: u32 = get_cfg("backup_hour", "2").parse().unwrap_or(2);
 
     // 判断当前小时是否已过备份时间点
@@ -799,6 +823,9 @@ pub fn daily_backup(db_path: tauri::State<PathBuf>, app_handle: tauri::AppHandle
     };
     fs::create_dir_all(&backup_dir).map_err(|e| e.to_string())?;
 
+    // 清理过期每日备份（每次启动都执行）
+    cleanup_old_backups(&backup_dir, keep_days)?;
+
     let today = chrono_now_str();
     let filename = format!("backup_{}.xlsx", today);
     let filepath = backup_dir.join(&filename);
@@ -812,23 +839,6 @@ pub fn daily_backup(db_path: tauri::State<PathBuf>, app_handle: tauri::AppHandle
     }
 
     let (count_m, count_r, count_rc) = write_backup_xlsx(&c, &filepath)?;
-
-    // 清理旧备份
-    if let Ok(entries) = fs::read_dir(&backup_dir) {
-        let mut files: Vec<_> = entries
-            .filter_map(|e| e.ok())
-            .filter(|e| {
-                let n = e.file_name().to_string_lossy().to_string();
-                n.starts_with("backup_") && n.ends_with(".xlsx")
-            })
-            .collect();
-        files.sort_by_key(|e| e.metadata().and_then(|m| m.modified()).unwrap_or(std::time::SystemTime::UNIX_EPOCH));
-        if files.len() > keep_days {
-            for old in files.iter().take(files.len() - keep_days) {
-                let _ = fs::remove_file(old.path());
-            }
-        }
-    }
 
     Ok(BackupResult {
         backed_up: true,
@@ -868,6 +878,97 @@ pub fn manual_backup(db_path: tauri::State<PathBuf>, app_handle: tauri::AppHandl
     })
 }
 
+// ── 备份文件列表 / 打开目录 ──
+
+#[derive(Serialize)]
+pub struct BackupFileInfo {
+    pub name: String,
+    pub path: String,
+    pub size: u64,
+    pub modified: String,
+}
+
+fn resolve_backup_dir(app_handle: &tauri::AppHandle, backup_dir_cfg: &str) -> Result<PathBuf, String> {
+    use tauri::Manager;
+    if backup_dir_cfg.is_empty() {
+        Ok(app_handle.path().app_data_dir().map_err(|e| e.to_string())?.join("backups"))
+    } else {
+        Ok(PathBuf::from(backup_dir_cfg))
+    }
+}
+
+/// 将 Unix 秒（UTC+8）格式化为 "YYYY-MM-DD HH:MM:SS"
+fn format_unix_utc8(secs: i64) -> String {
+    let secs = secs + 8 * 3600;
+    let sec = (secs % 60) as u32;
+    let min = ((secs / 60) % 60) as u32;
+    let hour = ((secs / 3600) % 24) as u32;
+    let (y, mo, d) = ymd_from_total_days((secs / 86400) as i32);
+    format!("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", y, mo, d, hour, min, sec)
+}
+
+#[tauri::command]
+pub fn list_backups(db_path: tauri::State<PathBuf>, app_handle: tauri::AppHandle) -> Result<Vec<BackupFileInfo>, String> {
+    use std::fs;
+    use std::time::UNIX_EPOCH;
+
+    let c = conn(db_path.inner())?;
+    let backup_dir_cfg: String = c.query_row(
+        "SELECT value FROM settings WHERE key='backup_dir'", [], |r| r.get(0)
+    ).unwrap_or_default();
+    let backup_dir = resolve_backup_dir(&app_handle, &backup_dir_cfg)?;
+
+    let mut files: Vec<BackupFileInfo> = Vec::new();
+    if let Ok(entries) = fs::read_dir(&backup_dir) {
+        for e in entries.filter_map(|e| e.ok()) {
+            let name = e.file_name().to_string_lossy().to_string();
+            if !(name.starts_with("backup_") && name.ends_with(".xlsx")) { continue; }
+            let md = e.metadata().map_err(|e| e.to_string())?;
+            let modified = md.modified()
+                .ok()
+                .and_then(|m| m.duration_since(UNIX_EPOCH).ok())
+                .map(|d| format_unix_utc8(d.as_secs() as i64))
+                .unwrap_or_default();
+            files.push(BackupFileInfo {
+                name,
+                path: e.path().to_string_lossy().to_string(),
+                size: md.len(),
+                modified,
+            });
+        }
+    }
+    files.sort_by(|a, b| b.modified.cmp(&a.modified));
+    Ok(files)
+}
+
+#[tauri::command]
+pub fn reveal_backup(db_path: tauri::State<PathBuf>, app_handle: tauri::AppHandle, path: String) -> Result<(), String> {
+    let c = conn(db_path.inner())?;
+    let backup_dir_cfg: String = c.query_row(
+        "SELECT value FROM settings WHERE key='backup_dir'", [], |r| r.get(0)
+    ).unwrap_or_default();
+    let backup_dir = resolve_backup_dir(&app_handle, &backup_dir_cfg)?;
+
+    let p = std::path::Path::new(&path);
+    if !p.is_file() { return Err("备份文件不存在".to_string()); }
+    if !p.starts_with(&backup_dir) { return Err("无效的备份路径".to_string()); }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open").arg("-R").arg(&path).spawn().map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer").args(["/select,", &path]).spawn().map_err(|e| e.to_string())?;
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let dir = p.parent().unwrap_or(&backup_dir);
+        std::process::Command::new("xdg-open").arg(dir).spawn().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 fn chrono_now_str() -> String {
     use std::time::SystemTime;
     let (year, month, day, _, _, _) = epoch_to_local();
@@ -895,8 +996,12 @@ fn epoch_to_local() -> (i32, u32, u32, u32, u32, u32) {
     let sec = (secs % 60) as u32;
     let min = ((secs / 60) % 60) as u32;
     let hour = ((secs / 3600) % 24) as u32;
+    let (y, m, d) = ymd_from_total_days((secs / 86400) as i32);
+    (y, m, d, hour, min, sec)
+}
 
-    let total_days = (secs / 86400) as i32;
+/// 将 1970-01-01 起的天数转换为 (年, 月, 日)
+fn ymd_from_total_days(total_days: i32) -> (i32, u32, u32) {
     let mut year = 1970i32;
     let mut remaining = total_days;
     loop {
@@ -906,9 +1011,9 @@ fn epoch_to_local() -> (i32, u32, u32, u32, u32, u32) {
         year += 1;
     }
     let mdays = if is_leap(year) {
-        [31i32,29,31,30,31,30,31,31,30,31,30,31]
+        [31i32, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
     } else {
-        [31i32,28,31,30,31,30,31,31,30,31,30,31]
+        [31i32, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
     };
     let mut month = 1u32;
     for &md in mdays.iter() {
@@ -916,7 +1021,7 @@ fn epoch_to_local() -> (i32, u32, u32, u32, u32, u32) {
         remaining -= md;
         month += 1;
     }
-    (year, month, (remaining + 1) as u32, hour, min, sec)
+    (year, month, (remaining + 1) as u32)
 }
 
 fn is_leap(y: i32) -> bool { (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0) }

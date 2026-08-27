@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { MemberFull, RecordItem, RechargeItem } from "../db";
+import { ChartIcon, UsersIcon, WalletIcon, BagIcon, ScissorsIcon, CreditCardIcon, ListIcon, FlameIcon } from "../components/Icons";
 
 interface Props {
   members: MemberFull[];
@@ -45,54 +46,64 @@ export default function StatsPage({ members, records, recharges }: Props) {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5);
 
-    return { todayRecords, todayIncome, todayRechargeTotal, totalBalance, totalSpent, totalRecharged, last7Days, topServices };
+    // 支付方式统计（今日 + 累计）
+    const todayByMethod: Record<string, number> = {};
+    todayRecords.forEach(r => {
+      todayByMethod[r.payment_method] = (todayByMethod[r.payment_method] || 0) + r.amount;
+    });
+    const totalByMethod: Record<string, number> = {};
+    records.forEach(r => {
+      totalByMethod[r.payment_method] = (totalByMethod[r.payment_method] || 0) + r.amount;
+    });
+
+    return { todayRecords, todayIncome, todayRechargeTotal, totalBalance, totalSpent, totalRecharged, last7Days, topServices, todayByMethod, totalByMethod };
   }, [members, records, recharges]);
 
   return (
     <div className="page">
       <div className="page-header">
-        <h2>📊 数据概览</h2>
+        <h2><ChartIcon size={20} /> 数据概览</h2>
       </div>
 
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-value">{members.length}</div>
-          <div className="stat-label">👥 会员总数</div>
+          <div className="stat-label" style={{display:"flex",alignItems:"center",gap:6}}><UsersIcon size={14} /> 会员总数</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">¥{stats.totalBalance.toFixed(0)}</div>
-          <div className="stat-label">💰 会员余额</div>
+          <div className="stat-label" style={{display:"flex",alignItems:"center",gap:6}}><WalletIcon size={14} /> 会员余额</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">¥{stats.totalSpent.toFixed(0)}</div>
-          <div className="stat-label">🛍️ 累计消费总额</div>
+          <div className="stat-label" style={{display:"flex",alignItems:"center",gap:6}}><BagIcon size={14} /> 累计消费总额</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">{stats.todayRecords.length}</div>
-          <div className="stat-label">✂️ 今日消费笔数</div>
+          <div className="stat-label" style={{display:"flex",alignItems:"center",gap:6}}><ScissorsIcon size={14} /> 今日消费笔数</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">¥{stats.todayIncome.toFixed(0)}</div>
-          <div className="stat-label">📈 今日收入</div>
+          <div className="stat-label" style={{display:"flex",alignItems:"center",gap:6}}><ChartIcon size={14} /> 今日收入</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">¥{stats.todayRechargeTotal.toFixed(0)}</div>
-          <div className="stat-label">💳 今日充值</div>
+          <div className="stat-label" style={{display:"flex",alignItems:"center",gap:6}}><CreditCardIcon size={14} /> 今日充值</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">¥{stats.totalRecharged.toFixed(0)}</div>
-          <div className="stat-label">💳 累计充值</div>
+          <div className="stat-label" style={{display:"flex",alignItems:"center",gap:6}}><CreditCardIcon size={14} /> 累计充值</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">{records.length}</div>
-          <div className="stat-label">📋 累计消费笔数</div>
+          <div className="stat-label" style={{display:"flex",alignItems:"center",gap:6}}><ListIcon size={14} /> 累计消费笔数</div>
         </div>
       </div>
 
       <div className="stats-row">
         {/* 近7天趋势 */}
         <div className="stats-panel">
-          <h3>📈 近7天收入趋势</h3>
+          <h3 style={{display:"flex",alignItems:"center",gap:8}}><ChartIcon size={16} /> 近7天收入趋势</h3>
           <div className="chart-bars">
             {stats.last7Days.map(d => {
               const maxIncome = Math.max(...stats.last7Days.map(x => x.income), 1);
@@ -107,11 +118,37 @@ export default function StatsPage({ members, records, recharges }: Props) {
             })}
           </div>
         </div>
+
+        {/* 支付方式统计 */}
+        <div className="stats-panel">
+          <h3 style={{display:"flex",alignItems:"center",gap:8}}><CreditCardIcon size={16} /> 支付方式</h3>
+          {Object.keys(stats.todayByMethod).length === 0 && Object.keys(stats.totalByMethod).length === 0 ? (
+            <div className="empty-state" style={{padding:"20px 0"}}>暂无数据</div>
+          ) : (
+            <div className="level-bars">
+              {[...new Set([...Object.keys(stats.todayByMethod), ...Object.keys(stats.totalByMethod)])].map(method => {
+                const t = stats.todayByMethod[method] || 0;
+                const c = stats.totalByMethod[method] || 0;
+                const maxToday = Math.max(...Object.values(stats.todayByMethod), 1);
+                const h = ((t / maxToday) * 100).toFixed(1);
+                return (
+                  <div key={method} className="level-bar-row">
+                    <span style={{minWidth:44,fontWeight:500}}>{method}</span>
+                    <div className="level-bar-track">
+                      <div className="level-bar-fill" style={{width:`${h}%`,minHeight:t>0?6:0}} />
+                    </div>
+                    <span className="level-bar-count" style={{minWidth:150,textAlign:"right"}}>今日 ¥{t.toFixed(0)} · 累计 ¥{c.toFixed(0)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Top 服务 */}
       <div className="stats-panel">
-        <h3>🔥 热门服务 TOP5</h3>
+        <h3 style={{display:"flex",alignItems:"center",gap:8}}><FlameIcon size={16} /> 热门服务 TOP5</h3>
         {stats.topServices.length === 0 ? (
           <div className="empty-state" style={{padding:"20px 0"}}>暂无消费记录</div>
         ) : (
