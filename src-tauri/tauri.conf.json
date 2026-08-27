@@ -1,7 +1,7 @@
 {
   "$schema": "https://tauri.app/schema/tauri.app.v2.json",
   "productName": "小凤美发",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "identifier": "com.zhanglutech.xiaofeng-hair",
   "build": {
     "beforeDevCommand": "npm run dev",
